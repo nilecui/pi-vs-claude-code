@@ -137,6 +137,11 @@ coms-net-server-lan:
     -lsof -ti :${PI_COMS_NET_PORT:-52965} | xargs -r kill -TERM 2>/dev/null
     PI_COMS_NET_HOST=0.0.0.0 bun scripts/coms-net-server.ts
 
+# Web control panel for the coms-net hub (live graph + terminal stream cards).
+# Auto-discovers server.json/server.secret.json; needs a running coms-net-server.
+dashboard:
+    cd apps/coms-dashboard && bun install && bun run dev
+
 # Pi with networked coms client (auto-discovers local server.json)
 # Pass any flags through, e.g.: just ext-coms-net --name dev --server-url http://… --auth-token …
 coms *args:
