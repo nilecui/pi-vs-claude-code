@@ -56,7 +56,7 @@ export function TerminalCard({
         {subtitle && <span className="term-sub">{subtitle}</span>}
       </div>
       <div className="term-body" ref={bodyRef}>
-        {lines.length === 0 && <div className="term-empty">— no traffic yet —</div>}
+        {lines.length === 0 && <div className="term-empty">— 暂无消息 —</div>}
         {lines.map((l) => (
           <div key={l.id} className={`term-line k-${l.kind}`}>
             <span className="term-prefix">{KIND_PREFIX[l.kind]}</span>

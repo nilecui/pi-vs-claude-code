@@ -53,8 +53,8 @@ export function LogRail() {
         );
       })}
       <div className="log-acc">
-        <div className="log-acc-head static"><b>activity feed</b><span className="term-sub">all hub events</span></div>
-        <div className="log-acc-body"><TerminalCard title="activity feed" subtitle="all hub events" lines={lines} /></div>
+        <div className="log-acc-head static"><b>活动流</b><span className="term-sub">全部事件</span></div>
+        <div className="log-acc-body"><TerminalCard title="活动流" subtitle="全部事件" lines={lines} /></div>
       </div>
     </div>
   );

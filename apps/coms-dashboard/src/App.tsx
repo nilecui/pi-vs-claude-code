@@ -5,6 +5,7 @@ import { FlowGraph } from "./components/FlowGraph";
 import { NodePanel } from "./components/NodePanel";
 import { LogRail } from "./components/LogRail";
 import { useStore } from "./store";
+import { CONN_STATUS_LABEL } from "./lib/labels";
 
 export default function App() {
   const init = useStore((s) => s.init);
@@ -26,8 +27,8 @@ export default function App() {
             </svg>
           </div>
           <div className="brand-text">
-            <div className="brand-title">coms-net panel</div>
-            <div className="brand-status"><span className={`status-led led-${status}`} /><span className="brand-sub">{status}</span></div>
+            <div className="brand-title">coms-net 控制面板</div>
+            <div className="brand-status"><span className={`status-led led-${status}`} /><span className="brand-sub">{CONN_STATUS_LABEL[status] ?? status}</span></div>
           </div>
         </div>
         <AddAgentForm />

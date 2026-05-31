@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Graph, NodeEvent, type GraphData, type LayoutOptions } from "@antv/g6";
 import { DASHBOARD_ID, useStore } from "../store";
+import { LAYOUT_LABEL } from "../lib/labels";
 
 const FLOW_COLOR: Record<string, string> = {
   prompt: "#3b82f6",
@@ -133,7 +134,7 @@ export function FlowGraph() {
         <span className="section-label">视角</span>
         {(Object.keys(LAYOUTS) as LayoutKey[]).map((k) => (
           <button key={k} className={`chip ${layout === k ? "on" : ""}`} onClick={() => setLayout(k)}>
-            {k}
+            {LAYOUT_LABEL[k] ?? k}
           </button>
         ))}
       </div>

@@ -22,7 +22,7 @@ export function InteractionComposer({ fromName }: { fromName: string }) {
     <div className="composer">
       <div className="section-label">让 {fromName} 去联系</div>
       <select value={effectiveTo} onChange={(e) => setTo(e.target.value)}>
-        {peers.length === 0 && <option value="">(无其他 agent)</option>}
+        {peers.length === 0 && <option value="">(无其他智能体)</option>}
         {peers.map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
       <textarea

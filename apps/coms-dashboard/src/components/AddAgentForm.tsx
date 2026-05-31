@@ -46,44 +46,44 @@ export function AddAgentForm() {
       setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopied(false);
-      window.prompt("Copy the launch command:", command);
+      window.prompt("复制启动命令:", command);
     }
   }
 
   return (
     <div className="add-agent">
       <button className="add-agent-toggle" onClick={() => setOpen((o) => !o)}>
-        + Add Agent
+        + 新增智能体
       </button>
       {open && (
         <div className="add-agent-body">
           <label className="field">
-            <span>name</span>
+            <span>名称</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="alice" />
           </label>
-          {dup && <div className="field-err">name already in pool</div>}
+          {dup && <div className="field-err">该名称已存在</div>}
 
           <label className="field">
-            <span>model</span>
+            <span>模型</span>
             <select value={preset} onChange={(e) => setPreset(e.target.value)}>
               {Object.keys(PRESETS).map((k) => (
-                <option key={k} value={k}>{k}</option>
+                <option key={k} value={k}>{k === "custom" ? "自定义" : k}</option>
               ))}
             </select>
           </label>
           {preset === "custom" && (
             <div className="field-row">
-              <input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="provider" />
-              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model" />
+              <input value={provider} onChange={(e) => setProvider(e.target.value)} placeholder="提供方" />
+              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="模型" />
             </div>
           )}
 
           <label className="field">
-            <span>purpose</span>
-            <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="Prod gatekeeper…" />
+            <span>用途</span>
+            <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="生产守门人…" />
           </label>
           <label className="field">
-            <span>color</span>
+            <span>颜色</span>
             <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#10b981" />
           </label>
           <label className="field-check">
@@ -95,7 +95,7 @@ export function AddAgentForm() {
             <code>{command}</code>
           </div>
           <button className="send-btn" disabled={!name.trim() || dup} onClick={copy}>
-            {copied ? "Copied ✓" : "Copy command"}
+            {copied ? "已复制 ✓" : "复制命令"}
           </button>
           <div className="add-agent-hint">在仓库根目录的终端里粘贴运行,agent 注册后会出现在池中。</div>
         </div>

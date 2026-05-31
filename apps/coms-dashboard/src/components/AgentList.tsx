@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "../store";
+import { AGENT_STATUS_LABEL } from "../lib/labels";
 
 export function AgentList() {
   const agents = useStore((s) => s.agents);
@@ -13,9 +14,9 @@ export function AgentList() {
 
   return (
     <div className="agent-list">
-      <div className="section-label">agents · {list.length}</div>
+      <div className="section-label">智能体 · {list.length}</div>
       {list.length === 0 && (
-        <div className="muted">No agents online. Add one above, or run <code>just coms</code>.</div>
+        <div className="muted">暂无在线智能体。在上方新增,或运行 <code>just coms</code>。</div>
       )}
       {list.map((a) => (
         <button
@@ -26,7 +27,7 @@ export function AgentList() {
           <span className="dot" style={{ background: a.color }} />
           <div className="agent-row-main">
             <div className="agent-row-name">
-              {a.name} <span className={`badge b-${a.status}`}>{a.status}</span>
+              {a.name} <span className={`badge b-${a.status}`}>{AGENT_STATUS_LABEL[a.status] ?? a.status}</span>
             </div>
             <div className="agent-row-model">{a.model}</div>
             <div className="ctx-bar sm"><div className="ctx-fill" style={{ width: `${Math.min(100, a.context_used_pct)}%` }} /></div>
