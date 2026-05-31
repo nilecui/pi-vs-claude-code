@@ -41,13 +41,19 @@ export function TerminalWindow({
   lines,
   big = false,
   selected = false,
-  onClick,
+  minimized = false,
+  onClose,
+  onMinimize,
+  onMaximize,
 }: {
   agent: AgentCard;
   lines: StreamLine[];
   big?: boolean;
   selected?: boolean;
-  onClick?: () => void;
+  minimized?: boolean;
+  onClose?: () => void;
+  onMinimize?: () => void;
+  onMaximize?: () => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const latestId = lines.length ? lines[lines.length - 1].id : "";
@@ -58,27 +64,45 @@ export function TerminalWindow({
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines.length, latestId]);
 
+  const light = (cls: string, title: string, handler?: () => void) =>
+    handler ? (
+      <button
+        type="button"
+        className={`macterm-light ${cls}`}
+        data-btn="1"
+        title={title}
+        onClick={(e) => { e.stopPropagation(); handler(); }}
+      />
+    ) : (
+      <span className={`macterm-light ${cls}`} />
+    );
+
   return (
-    <div className={`macterm${selected ? " sel" : ""}`} onClick={big ? undefined : onClick}>
+    <div
+      className={`macterm${selected ? " sel" : ""}`}
+      onClick={big ? undefined : onMaximize}
+    >
       <div className="macterm-bar">
         <div className="macterm-lights">
-          <span className="macterm-light l-red" />
-          <span className="macterm-light l-yellow" />
-          <span className="macterm-light l-green" />
+          {light("l-red", "关闭", onClose)}
+          {light("l-yellow", "最小化", onMinimize)}
+          {light("l-green", "放大", onMaximize)}
         </div>
         <span className="macterm-title">{agent.name}</span>
         <span className="macterm-model">{agent.model}</span>
       </div>
-      <div className={`macterm-body${big ? " big" : ""}`} ref={bodyRef}>
-        {lines.length === 0 && <div className="sh-empty">— 暂无消息 —</div>}
-        {lines.map((l) => (
-          <div key={l.id} className="sh-line">
-            <span className={KIND_CLASS[l.kind]}>{KIND_PREFIX[l.kind]} </span>
-            <span className="sh-pre">{l.from}{l.to ? `→${l.to}` : ""} </span>
-            {l.id === latestId ? <TypingLine text={l.text} /> : l.text}
-          </div>
-        ))}
-      </div>
+      {!minimized && (
+        <div className={`macterm-body${big ? " big" : ""}`} ref={bodyRef}>
+          {lines.length === 0 && <div className="sh-empty">— 暂无消息 —</div>}
+          {lines.map((l) => (
+            <div key={l.id} className="sh-line">
+              <span className={KIND_CLASS[l.kind]}>{KIND_PREFIX[l.kind]} </span>
+              <span className="sh-pre">{l.from}{l.to ? `→${l.to}` : ""} </span>
+              {l.id === latestId ? <TypingLine text={l.text} /> : l.text}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
