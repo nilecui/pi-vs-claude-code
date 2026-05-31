@@ -22,10 +22,11 @@ type LayoutKey = keyof typeof LAYOUTS;
 
 const asLayout = (l: Record<string, unknown>) => l as unknown as LayoutOptions;
 
-function buildData(
-  agents: ReturnType<typeof useStore.getState>["agents"],
-  flows: ReturnType<typeof useStore.getState>["flows"],
-): GraphData {
+// Base dataset only: nodes (panel + agents) and the faint resting `base-<id>`
+// panel→agent edges. Transient pulse edges are reconciled incrementally in a
+// separate effect so a full setData() never tries to diff/remove them — which
+// makes G6 5.1.1 throw "Edge not found" under rapid add/clear.
+function buildBaseData(agents: ReturnType<typeof useStore.getState>["agents"]): GraphData {
   const list = Object.values(agents).filter((a) => !a.explicit);
   const nodes: NonNullable<GraphData["nodes"]> = [
     { id: DASHBOARD_ID, data: { label: "◆ control panel", dashboard: true, color: "#3b82f6" } },
@@ -36,22 +37,12 @@ function buildData(
       data: { label: `${a.name}\n${a.model}`, color: a.color, status: a.status },
     });
   }
-  const ids = new Set(nodes.map((n) => n.id));
   const edges: NonNullable<GraphData["edges"]> = list.map((a) => ({
     id: `base-${a.session_id}`,
     source: DASHBOARD_ID,
     target: a.session_id,
     data: { color: "#e2e8f0" },
   }));
-  for (const f of flows) {
-    if (!ids.has(f.from) || !ids.has(f.to)) continue;
-    edges.push({
-      id: `flow-${f.id}`,
-      source: f.from,
-      target: f.to,
-      data: { color: FLOW_COLOR[f.kind] ?? "#3b82f6", pulse: true },
-    });
-  }
   return { nodes, edges };
 }
 
@@ -62,6 +53,8 @@ export function FlowGraph() {
   const flows = useStore((s) => s.flows);
   const select = useStore((s) => s.select);
   const [layout, setLayout] = useState<LayoutKey>("force");
+  // Ids of pulse edges currently drawn, for incremental add/remove reconciliation.
+  const drawn = useRef<Set<string>>(new Set());
 
   // Create once on mount.
   useEffect(() => {
@@ -69,7 +62,7 @@ export function FlowGraph() {
     const graph = new Graph({
       container: containerRef.current,
       autoFit: "center",
-      data: buildData(useStore.getState().agents, useStore.getState().flows),
+      data: buildBaseData(useStore.getState().agents),
       layout: asLayout(LAYOUTS.force),
       node: {
         type: "rect",
@@ -111,13 +104,53 @@ export function FlowGraph() {
     };
   }, [select]);
 
-  // Update data on agents/flows change.
+  // Rebuild base nodes/edges only when the agent pool changes (rare).
   useEffect(() => {
     const g = graphRef.current;
     if (!g || g.destroyed) return;
-    g.setData(buildData(agents, flows));
-    g.render().catch(() => {});
-  }, [agents, flows]);
+    try {
+      g.setData(buildBaseData(agents));
+      // Base data no longer carries pulse edges; clear our reconciliation set so
+      // the pulse effect re-adds any still-active flows on the fresh dataset.
+      drawn.current.clear();
+      g.render().catch(() => {});
+    } catch {}
+  }, [agents]);
+
+  // Reconcile transient pulse edges incrementally (add new, remove gone) so the
+  // demo's rapid add/clear of flows never triggers a full-dataset diff.
+  useEffect(() => {
+    const g = graphRef.current;
+    if (!g || g.destroyed) return;
+    try {
+      const nodeIds = new Set(g.getNodeData().map((n: any) => n.id));
+      const want = new Map<string, { source: string; target: string; color: string }>();
+      for (const f of flows) {
+        if (!nodeIds.has(f.from) || !nodeIds.has(f.to)) continue;
+        want.set(`flow-${f.id}`, {
+          source: f.from,
+          target: f.to,
+          color: FLOW_COLOR[f.kind] ?? "#3b82f6",
+        });
+      }
+      // Add edges that are wanted but not yet drawn.
+      for (const [id, e] of want) {
+        if (drawn.current.has(id)) continue;
+        g.addEdgeData([{ id, source: e.source, target: e.target, data: { color: e.color, pulse: true } }]);
+        drawn.current.add(id);
+      }
+      // Remove edges we previously drew that are no longer wanted.
+      for (const id of [...drawn.current]) {
+        if (!want.has(id)) {
+          try {
+            g.removeEdgeData([id]);
+          } catch {}
+          drawn.current.delete(id);
+        }
+      }
+      g.draw().catch(() => {});
+    } catch {}
+  }, [flows, agents]);
 
   // Switch layout preset.
   useEffect(() => {
