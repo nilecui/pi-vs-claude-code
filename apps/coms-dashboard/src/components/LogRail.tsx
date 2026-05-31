@@ -7,6 +7,7 @@ export function LogRail() {
   const lines = useStore((s) => s.lines);
   const linesByAgent = useStore((s) => s.linesByAgent);
   const selected = useStore((s) => s.selected);
+  const selectNonce = useStore((s) => s.selectNonce);
 
   const list = useMemo(
     () => Object.values(agents).filter((a) => !a.explicit).sort((a, b) => a.name.localeCompare(b.name)),
@@ -22,7 +23,7 @@ export function LogRail() {
     setExpanded((e) => ({ ...e, [selected]: true }));
     const el = sectionRefs.current[selected];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [selected]);
+  }, [selected, selectNonce]);
 
   function toggle(id: string) {
     setExpanded((e) => ({ ...e, [id]: !e[id] }));

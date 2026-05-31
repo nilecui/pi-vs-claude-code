@@ -23,6 +23,7 @@ interface State {
   linesByAgent: Record<string, StreamLine[]>;
   flows: FlowPulse[]; // transient edge pulses for the graph
   selected?: string;
+  selectNonce: number;
   demoAgents: Record<string, AgentCard>;
   client: HubClient | null;
 
@@ -182,6 +183,7 @@ export const useStore = create<State>((set, get) => {
     lines: [],
     linesByAgent: {},
     flows: [],
+    selectNonce: 0,
     client: null,
 
     init() {
@@ -242,7 +244,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     select(sessionId) {
-      set({ selected: sessionId });
+      set((s) => ({ selected: sessionId, selectNonce: s.selectNonce + 1 }));
     },
 
     clearFlow(id) {
@@ -250,6 +252,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     seedDemo() {
+      if (get().demoAgents["DEMO-PROD"]) return;
       const iso = new Date().toISOString();
       const PROD: AgentCard = {
         session_id: "DEMO-PROD", name: "prod-gatekeeper",

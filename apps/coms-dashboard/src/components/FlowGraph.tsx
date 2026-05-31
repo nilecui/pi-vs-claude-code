@@ -29,7 +29,7 @@ const asLayout = (l: Record<string, unknown>) => l as unknown as LayoutOptions;
 function buildBaseData(agents: ReturnType<typeof useStore.getState>["agents"]): GraphData {
   const list = Object.values(agents).filter((a) => !a.explicit);
   const nodes: NonNullable<GraphData["nodes"]> = [
-    { id: DASHBOARD_ID, data: { label: "◆ control panel", dashboard: true, color: "#3b82f6" } },
+    { id: DASHBOARD_ID, data: { label: "◆ 控制面板", dashboard: true, color: "#3b82f6" } },
   ];
   for (const a of list) {
     nodes.push({

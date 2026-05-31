@@ -67,14 +67,6 @@ code {
 
 .app { display: grid; grid-template-columns: 280px 1fr 320px; height: 100vh; }
 
-/* ── Sidebar ─────────────────────────────────────────── */
-.sidebar {
-  background: var(--panel);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  padding: 14px; gap: 12px; overflow: hidden;
-}
 .brand { display: flex; align-items: center; gap: 11px; padding: 2px 2px 12px; border-bottom: 1px solid var(--border); }
 .brand-logo {
   width: 32px; height: 32px; flex: 0 0 auto; border-radius: 8px;
@@ -130,14 +122,6 @@ code {
 .ctx-bar.sm { height: 4px; }
 .ctx-fill { height: 100%; background: var(--grad-cpu); transition: width .7s ease-out; }
 
-.compose { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 12px; }
-.compose textarea {
-  resize: none; height: 64px; background: var(--bg); border: 1px solid var(--border);
-  border-radius: 12px; color: var(--text); padding: 9px 11px; font-size: 13px;
-  font-family: inherit; transition: border-color .15s, box-shadow .15s;
-}
-.compose textarea::placeholder { color: hsl(220 9% 46% / .7); }
-.compose textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px hsl(217 91% 60% / .15); }
 .send-btn {
   background: var(--primary); color: var(--primary-fg); border: none; border-radius: 12px;
   padding: 10px; font-weight: 500; cursor: pointer; font-size: 13px;
@@ -145,39 +129,6 @@ code {
 }
 .send-btn:hover:not(:disabled) { transform: translateY(-1px); background: hsl(217 91% 56%); box-shadow: 0 10px 28px -8px rgb(59 130 246 / .45); }
 .send-btn:disabled { background: var(--muted-surface); color: var(--muted); cursor: not-allowed; box-shadow: none; }
-.hint { font-weight: 400; opacity: .7; margin-left: 4px; }
-
-/* ── Main ────────────────────────────────────────────── */
-.main { display: grid; grid-template-rows: 1fr 38%; min-width: 0; }
-.graph-pane { position: relative; border-bottom: 1px solid var(--border); background: var(--bg); }
-.streams-pane {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(300px, 1fr);
-  gap: 12px; padding: 12px; overflow-x: auto; background: var(--streams-bg);
-}
-
-/* ── React Flow nodes ────────────────────────────────── */
-.node {
-  background: var(--card); border: 1px solid var(--hairline); border-radius: 12px;
-  padding: 10px 13px; min-width: 132px; font-size: 12px; color: var(--text);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  box-shadow: var(--shadow-card); transition: transform .2s var(--ease), box-shadow .2s, border-color .2s;
-}
-.node:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: hsl(224 71% 4% / .1); }
-.node-dashboard {
-  border-color: hsl(217 91% 60% / .4); background: hsl(217 91% 60% / .06); text-align: center;
-  position: relative; overflow: hidden;
-}
-.node-dashboard::before {
-  content: ""; position: absolute; inset-inline: 0; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(217 91% 60% / .6), transparent);
-}
-.node-title { font-weight: 600; letter-spacing: -.005em; display: flex; align-items: center; gap: 6px; }
-.node-dashboard .node-title { justify-content: center; color: var(--primary-strong); }
-.node-sub { color: var(--muted); font-size: 11px; margin: 2px 0 7px; }
-.node-meta { font-size: 10px; color: var(--muted); margin-top: 6px; font-family: "Geist Mono", ui-monospace, Menlo, monospace; }
-.node.status-stale { opacity: .65; }
-.node.status-offline { opacity: .4; }
-.rf-handle { opacity: 0; }
 
 /* ── Terminal stream cards ───────────────────────────── */
 .term-card {
