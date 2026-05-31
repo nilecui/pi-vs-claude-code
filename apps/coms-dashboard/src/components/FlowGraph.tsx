@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Graph, NodeEvent, type GraphData, type LayoutOptions } from "@antv/g6";
+import { EdgeEvent, Graph, NodeEvent, type GraphData, type LayoutOptions } from "@antv/g6";
 import { DASHBOARD_ID, edgeKey, useStore } from "../store";
 import { LAYOUT_LABEL } from "../lib/labels";
+import { ConversationDialog } from "./ConversationDialog";
 
 const FLOW_COLOR: Record<string, string> = {
   prompt: "#3b82f6",
@@ -30,7 +31,7 @@ const LAYOUTS: Record<string, Record<string, unknown>> = {
   force: { type: "d3-force", collide: { radius: 60 } },
   radial: { type: "radial", unitRadius: 170, linkDistance: 170 },
   dagre: { type: "antv-dagre", rankdir: "LR", nodesep: 24, ranksep: 120 },
-  tree: { type: "antv-dagre", rankdir: "TB", nodesep: 30, ranksep: 80 },
+  tree: { type: "antv-dagre", rankdir: "TB", nodesep: 24, ranksep: 60 },
 };
 type LayoutKey = keyof typeof LAYOUTS;
 
@@ -39,12 +40,22 @@ const asLayout = (l: Record<string, unknown>) => l as unknown as LayoutOptions;
 type Agents = ReturnType<typeof useStore.getState>["agents"];
 type EdgeCounts = ReturnType<typeof useStore.getState>["edgeCounts"];
 
-// Base dataset only: circular avatar nodes (panel + agents) and the faint resting
-// curved `base-<id>` panel→agent edges (carrying the live message count). Transient
-// pulse edges are reconciled incrementally in a separate effect so a full setData()
-// never tries to diff/remove them — which makes G6 5.1.1 throw "Edge not found".
+// Resolve a node/session id to a human name for the conversation dialog, which
+// filters StreamLines by `from`/`to` names ("dashboard" for the panel node).
+const nameOf = (sessionId: string): string =>
+  sessionId === DASHBOARD_ID
+    ? "dashboard"
+    : useStore.getState().agents[sessionId]?.name ?? sessionId;
+
+// Base dataset: circular avatar nodes (panel + agents) plus a faint curved
+// `base-<sortedPairKey>` edge for the panel→agent structure AND for every pair
+// that has exchanged messages (incl. peer↔peer), each carrying its live count.
+// Transient pulse edges are reconciled incrementally in a separate effect so a
+// full setData() never tries to diff/remove them — which would make G6 5.1.1
+// throw "Edge not found".
 function buildBaseData(agents: Agents, counts: EdgeCounts): GraphData {
   const list = Object.values(agents).filter((a) => !a.explicit);
+  const nodeIds = new Set<string>([DASHBOARD_ID, ...list.map((a) => a.session_id)]);
   const nodes: NonNullable<GraphData["nodes"]> = [
     {
       id: DASHBOARD_ID,
@@ -57,15 +68,30 @@ function buildBaseData(agents: Agents, counts: EdgeCounts): GraphData {
       data: { name: a.name, color: a.color, status: a.status },
     });
   }
-  const edges: NonNullable<GraphData["edges"]> = list.map((a) => {
-    const count = counts[edgeKey(DASHBOARD_ID, a.session_id)] ?? 0;
-    return {
-      id: `base-${a.session_id}`,
-      source: DASHBOARD_ID,
-      target: a.session_id,
-      data: { color: "#c7d2fe", count },
-    };
-  });
+
+  const edgeMap = new Map<string, { id: string; source: string; target: string; count: number }>();
+  const add = (source: string, target: string) => {
+    if (!nodeIds.has(source) || !nodeIds.has(target) || source === target) return;
+    const key = edgeKey(source, target);
+    if (!edgeMap.has(key)) {
+      edgeMap.set(key, { id: `base-${key}`, source, target, count: counts[key] ?? 0 });
+    } else {
+      edgeMap.get(key)!.count = counts[key] ?? edgeMap.get(key)!.count;
+    }
+  };
+  for (const a of list) add(DASHBOARD_ID, a.session_id); // structural panel↔agent edges
+  for (const k of Object.keys(counts)) {
+    // counted pairs (incl. peer↔peer); only render if both endpoints still exist
+    const [s, t] = k.split("::");
+    add(s, t);
+  }
+
+  const edges: NonNullable<GraphData["edges"]> = [...edgeMap.values()].map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    data: { color: "#c7d2fe", count: e.count },
+  }));
   return { nodes, edges };
 }
 
@@ -77,6 +103,8 @@ export function FlowGraph() {
   const edgeCounts = useStore((s) => s.edgeCounts);
   const select = useStore((s) => s.select);
   const [layout, setLayout] = useState<LayoutKey>("tree");
+  // Open conversation dialog for a clicked base edge: [nameA, nameB].
+  const [convo, setConvo] = useState<[string, string] | null>(null);
   // Ids of pulse edges currently drawn, for incremental add/remove reconciliation.
   const drawn = useRef<Set<string>>(new Set());
   // Render lock: true while a (re)layout render() is in flight, so the rAF draw
@@ -89,6 +117,9 @@ export function FlowGraph() {
     const graph = new Graph({
       container: containerRef.current,
       autoFit: "center",
+      // Margin kept around content when auto-fitting / fitView (5.1.1 FitViewOptions
+      // has no padding key — padding lives at the viewport/graph level).
+      padding: 48,
       animation: true,
       data: buildBaseData(useStore.getState().agents, useStore.getState().edgeCounts),
       layout: asLayout(LAYOUTS.tree),
@@ -166,9 +197,22 @@ export function FlowGraph() {
       const id = evt.target?.id;
       if (id && id !== DASHBOARD_ID) select(id);
     });
+    // Click a base edge (or its count badge) → open the conversation dialog.
+    graph.on(EdgeEvent.CLICK, (evt: any) => {
+      const g = graphRef.current;
+      if (!g || g.destroyed) return;
+      const id: string | undefined = evt.target?.id;
+      if (!id || !id.startsWith("base-")) return; // ignore transient flow- pulses
+      try {
+        const e: any = g.getEdgeData(id);
+        if (!e) return;
+        setConvo([nameOf(e.source), nameOf(e.target)]);
+      } catch {}
+    });
     rendering.current = true;
     const rendered = graph
       .render()
+      .then(() => graph.fitView({ when: "always" }))
       .catch(() => {})
       .finally(() => {
         rendering.current = false;
@@ -238,6 +282,7 @@ export function FlowGraph() {
       // removing nodes never overlaps the continuous draw loop.
       rendering.current = true;
       g.render()
+        .then(() => g.fitView({ when: "always" }))
         .catch(() => {})
         .finally(() => {
           rendering.current = false;
@@ -304,6 +349,7 @@ export function FlowGraph() {
     g.setLayout(asLayout(LAYOUTS[layout]));
     rendering.current = true;
     g.render()
+      .then(() => g.fitView({ when: "always" }))
       .catch(() => {})
       .finally(() => {
         rendering.current = false;
@@ -323,7 +369,7 @@ export function FlowGraph() {
     const g = graphRef.current;
     if (!g || g.destroyed) return;
     try {
-      void g.fitView().catch(() => {});
+      void g.fitView({ when: "always" }).catch(() => {});
     } catch {}
   };
 
@@ -343,6 +389,7 @@ export function FlowGraph() {
           </button>
         ))}
       </div>
+      {convo && <ConversationDialog pair={convo} onClose={() => setConvo(null)} />}
     </div>
   );
 }
