@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { HubClient } from "./api/hub";
 import type { AgentCard, SseEvent, StreamLine } from "./types";
+import { orchestratePrompt } from "./lib/orchestratePrompt";
 
 export const DASHBOARD_ID = "__dashboard__";
 const MAX_LINES = 500;
@@ -21,14 +22,19 @@ interface State {
   lines: StreamLine[]; // global activity log
   linesByAgent: Record<string, StreamLine[]>;
   flows: FlowPulse[]; // transient edge pulses for the graph
+  edgeCounts: Record<string, number>; // cumulative message count per connection (sorted-pair key)
   selected?: string;
+  selectNonce: number;
+  demoAgents: Record<string, AgentCard>;
   client: HubClient | null;
 
   init: () => void;
   shutdown: () => void;
   send: (target: string, prompt: string) => Promise<void>;
+  orchestrate: (fromName: string, toName: string, task: string) => Promise<void>;
   select: (sessionId?: string) => void;
   clearFlow: (id: string) => void;
+  seedDemo: () => void;
 }
 
 let lineSeq = 0;
@@ -43,6 +49,10 @@ function responseText(response: unknown, error: string | null | undefined): stri
 function sessionByName(agents: Record<string, AgentCard>, name: string): string | undefined {
   return Object.values(agents).find((a) => a.name === name)?.session_id;
 }
+
+// Symmetric key for a connection between two endpoints, so prompt and response
+// over the same pair accumulate into one count. Exported for the graph's labels.
+export const edgeKey = (a: string, b: string) => [a, b].sort().join("::");
 
 // The hub sends sender/responder as { session_id, name }, but tolerate a bare
 // string (name or session_id) for forward/backward compat.
@@ -71,7 +81,10 @@ export const useStore = create<State>((set, get) => {
 
   function pulse(from: string, to: string, kind: FlowPulse["kind"]) {
     const id = nextId();
-    set((s) => ({ flows: [...s.flows, { id, from, to, kind, ts: Date.now() }] }));
+    set((s) => ({
+      flows: [...s.flows, { id, from, to, kind, ts: Date.now() }],
+      edgeCounts: { ...s.edgeCounts, [edgeKey(from, to)]: (s.edgeCounts[edgeKey(from, to)] ?? 0) + 1 },
+    }));
     setTimeout(() => get().clearFlow(id), 2400);
   }
 
@@ -85,7 +98,7 @@ export const useStore = create<State>((set, get) => {
       case "pool_snapshot": {
         const map: Record<string, AgentCard> = {};
         for (const a of e.data.agents) map[a.session_id] = a;
-        set({ agents: map });
+        set((s) => ({ agents: { ...map, ...s.demoAgents } }));
         break;
       }
 
@@ -174,9 +187,12 @@ export const useStore = create<State>((set, get) => {
   return {
     status: "connecting",
     agents: {},
+    demoAgents: {},
     lines: [],
     linesByAgent: {},
     flows: [],
+    edgeCounts: {},
+    selectNonce: 0,
     client: null,
 
     init() {
@@ -218,12 +234,82 @@ export const useStore = create<State>((set, get) => {
       }
     },
 
+    async orchestrate(fromName, toName, task) {
+      const client = get().client;
+      if (!client) return;
+      const agents = get().agents;
+      const fromSession = sessionByName(agents, fromName) ?? fromName;
+      const toSession = sessionByName(agents, toName) ?? toName;
+      pulse(fromSession, toSession, "prompt");
+      pushLine(
+        { id: nextId(), ts: Date.now(), kind: "prompt", from: fromName, to: toName, text: `(orchestrate) ${task}` },
+        fromSession in agents ? fromSession : undefined,
+      );
+      try {
+        await client.send(fromName, orchestratePrompt(toName, task));
+      } catch (err) {
+        pushLine({ id: nextId(), ts: Date.now(), kind: "error", from: "hub", text: `orchestrate failed: ${err}` });
+      }
+    },
+
     select(sessionId) {
-      set({ selected: sessionId });
+      set((s) => ({ selected: sessionId, selectNonce: s.selectNonce + 1 }));
     },
 
     clearFlow(id) {
       set((s) => ({ flows: s.flows.filter((f) => f.id !== id) }));
+    },
+
+    seedDemo() {
+      if (get().demoAgents["DEMO-PROD"]) return;
+      const iso = new Date().toISOString();
+      const PROD: AgentCard = {
+        session_id: "DEMO-PROD", name: "prod-gatekeeper",
+        purpose: "生产守门人:裁剪并脱敏数据,绝不泄露 PII",
+        model: "claude-opus-4-7", provider: "anthropic", color: "#ef4444",
+        cwd: "/srv/prod", project: "default", explicit: false,
+        started_at: iso, context_used_pct: 18, queue_depth: 0, status: "online",
+      };
+      const DEV: AgentCard = {
+        session_id: "DEMO-DEV", name: "dev-repro",
+        purpose: "在本地复现 Pro 用户被误锁的生产 bug",
+        model: "gpt-5.5", provider: "openai", color: "#10b981",
+        cwd: "/home/dev/app", project: "default", explicit: false,
+        started_at: iso, context_used_pct: 9, queue_depth: 0, status: "online",
+      };
+      const demo = { "DEMO-PROD": PROD, "DEMO-DEV": DEV };
+      set((s) => ({ demoAgents: { ...s.demoAgents, ...demo }, agents: { ...s.agents, ...demo } }));
+
+      const step = (
+        delay: number,
+        kind: StreamLine["kind"],
+        from: string,
+        to: string,
+        fromSession: string,
+        toSession: string,
+        text: string,
+      ) => {
+        setTimeout(() => {
+          pulse(fromSession, toSession, kind === "response" ? "response" : "prompt");
+          const line: StreamLine = { id: nextId(), ts: Date.now(), kind, from, to, text };
+          set((s) => {
+            const lines = [...s.lines, line].slice(-MAX_LINES);
+            const linesByAgent = { ...s.linesByAgent };
+            for (const sid of [fromSession, toSession]) {
+              if (sid === DASHBOARD_ID) continue;
+              linesByAgent[sid] = [...(linesByAgent[sid] ?? []), line].slice(-MAX_LINES);
+            }
+            return { lines, linesByAgent };
+          });
+        }, delay);
+      };
+
+      step(200,  "prompt",   "dashboard",       "dev-repro",       DASHBOARD_ID, "DEMO-DEV",  "复现 Pro 用户被错误锁定的生产 bug。数据在 prod,务必脱敏,别碰 PII。");
+      step(1200, "prompt",   "dev-repro",       "prod-gatekeeper", "DEMO-DEV",   "DEMO-PROD", "请把涉及被锁 Pro 用户的那段数据,去除 PII 后发我,我导入本地库复现。");
+      step(2600, "response", "prod-gatekeeper", "dev-repro",       "DEMO-PROD",  "DEMO-DEV",  "已裁剪+脱敏:{ user_id:'usr_***9f2', plan:'pro', status:'locked', reason:'BILLING_MISMATCH' }。姓名/邮箱/卡号已移除。");
+      step(4000, "prompt",   "dev-repro",       "prod-gatekeeper", "DEMO-DEV",   "DEMO-PROD", "导入成功并复现:续费成功但 plan_expiry 未刷新导致误锁。prod 上 expiry 字段是什么时区?");
+      step(5400, "response", "prod-gatekeeper", "dev-repro",       "DEMO-PROD",  "DEMO-DEV",  "确认:expiry 存 UTC,锁定任务按本地时区比较 → 边界误判。附 3 条样本时间戳。");
+      step(6800, "response", "dev-repro",       "dashboard",       "DEMO-DEV",   DASHBOARD_ID,"结论:锁定逻辑时区 bug,修复为统一用 UTC 比较 plan_expiry,本地已验证通过。PII 全程未离开 prod。");
     },
   };
 });

@@ -1,46 +1,50 @@
-import { useEffect, useMemo } from "react";
-import { Sidebar } from "./components/Sidebar";
-import { GraphView } from "./components/GraphView";
-import { TerminalCard } from "./components/TerminalCard";
+import { useEffect } from "react";
+import { AddAgentForm } from "./components/AddAgentForm";
+import { AgentList } from "./components/AgentList";
+import { FlowGraph } from "./components/FlowGraph";
+import { NodePanel } from "./components/NodePanel";
+import { LogRail } from "./components/LogRail";
 import { useStore } from "./store";
+import { CONN_STATUS_LABEL } from "./lib/labels";
 
 export default function App() {
   const init = useStore((s) => s.init);
   const shutdown = useStore((s) => s.shutdown);
-  const agents = useStore((s) => s.agents);
-  const lines = useStore((s) => s.lines);
-  const linesByAgent = useStore((s) => s.linesByAgent);
+  const status = useStore((s) => s.status);
+  const seedDemo = useStore((s) => s.seedDemo);
 
   useEffect(() => {
     init();
     return () => shutdown();
   }, [init, shutdown]);
 
-  const cards = useMemo(
-    () => Object.values(agents).filter((a) => !a.explicit).sort((a, b) => a.name.localeCompare(b.name)),
-    [agents],
-  );
-
   return (
     <div className="app">
-      <Sidebar />
-      <main className="main">
-        <section className="graph-pane">
-          <GraphView />
-        </section>
-        <section className="streams-pane">
-          <TerminalCard title="activity feed" subtitle="all hub events" lines={lines} />
-          {cards.map((a) => (
-            <TerminalCard
-              key={a.session_id}
-              title={a.name}
-              color={a.color}
-              subtitle={a.model}
-              lines={linesByAgent[a.session_id] ?? []}
-            />
-          ))}
-        </section>
+      <aside className="rail-left">
+        <div className="brand">
+          <div className="brand-logo">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+            </svg>
+          </div>
+          <div className="brand-text">
+            <div className="brand-title">coms-net 控制面板</div>
+            <div className="brand-status"><span className={`status-led led-${status}`} /><span className="brand-sub">{CONN_STATUS_LABEL[status] ?? status}</span></div>
+          </div>
+        </div>
+        <AddAgentForm />
+        <button className="demo-btn" onClick={() => seedDemo()}>▶ 演示:Prod/Dev 复现</button>
+        <AgentList />
+      </aside>
+
+      <main className="rail-center">
+        <FlowGraph />
+        <NodePanel />
       </main>
+
+      <aside className="rail-right">
+        <LogRail />
+      </aside>
     </div>
   );
 }
