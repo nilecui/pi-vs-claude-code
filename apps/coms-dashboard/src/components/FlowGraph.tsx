@@ -79,6 +79,9 @@ export function FlowGraph() {
   const [layout, setLayout] = useState<LayoutKey>("force");
   // Ids of pulse edges currently drawn, for incremental add/remove reconciliation.
   const drawn = useRef<Set<string>>(new Set());
+  // Render lock: true while a (re)layout render() is in flight, so the rAF draw
+  // loop pauses and the render gets exclusive access (no overlapping draws).
+  const rendering = useRef(false);
 
   // Create once on mount.
   useEffect(() => {
@@ -163,7 +166,13 @@ export function FlowGraph() {
       const id = evt.target?.id;
       if (id && id !== DASHBOARD_ID) select(id);
     });
-    const rendered = graph.render().catch(() => {});
+    rendering.current = true;
+    const rendered = graph
+      .render()
+      .catch(() => {})
+      .finally(() => {
+        rendering.current = false;
+      });
     graphRef.current = graph;
 
     // ── Animation loop ────────────────────────────────────────────────────────
@@ -179,7 +188,7 @@ export function FlowGraph() {
       if (t - last < 50) return; // ~20fps
       last = t;
       const g = graphRef.current;
-      if (!g || g.destroyed) return;
+      if (!g || g.destroyed || rendering.current) return;
       try {
         offset = (offset + 1.2) % 1000;
         // Re-read CURRENT edges/nodes every frame, so removed pulse edges simply
@@ -225,7 +234,14 @@ export function FlowGraph() {
       // Base data no longer carries pulse edges; clear our reconciliation set so
       // the pulse effect re-adds any still-active flows on the fresh dataset.
       drawn.current.clear();
-      g.render().catch(() => {});
+      // Lock the rAF loop out while this relayout render draws, so adding OR
+      // removing nodes never overlaps the continuous draw loop.
+      rendering.current = true;
+      g.render()
+        .catch(() => {})
+        .finally(() => {
+          rendering.current = false;
+        });
     } catch {}
   }, [agents]);
 
@@ -286,7 +302,12 @@ export function FlowGraph() {
     const g = graphRef.current;
     if (!g || g.destroyed) return;
     g.setLayout(asLayout(LAYOUTS[layout]));
-    g.render().catch(() => {});
+    rendering.current = true;
+    g.render()
+      .catch(() => {})
+      .finally(() => {
+        rendering.current = false;
+      });
   }, [layout]);
 
   return (
