@@ -100,7 +100,7 @@ export function FlowGraph() {
       const id = evt.target?.id;
       if (id && id !== DASHBOARD_ID) select(id);
     });
-    graph.render();
+    graph.render().catch(() => {});
     graphRef.current = graph;
     return () => {
       graph.destroy();
@@ -111,17 +111,17 @@ export function FlowGraph() {
   // Update data on agents/flows change.
   useEffect(() => {
     const g = graphRef.current;
-    if (!g) return;
+    if (!g || g.destroyed) return;
     g.setData(buildData(agents, flows));
-    g.render();
+    g.render().catch(() => {});
   }, [agents, flows]);
 
   // Switch layout preset.
   useEffect(() => {
     const g = graphRef.current;
-    if (!g) return;
+    if (!g || g.destroyed) return;
     g.setLayout(asLayout(LAYOUTS[layout]));
-    g.render();
+    g.render().catch(() => {});
   }, [layout]);
 
   return (
