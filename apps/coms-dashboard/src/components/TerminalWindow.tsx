@@ -19,16 +19,20 @@ const KIND_CLASS: Record<StreamLine["kind"], string> = {
 
 // Reveals text character by character on mount — the streaming shell feel.
 // Reveal time is clamped so long responses don't crawl; long blocks instant.
-function TypingLine({ text }: { text: string }) {
+function TypingLine({ text, onReveal }: { text: string; onReveal?: () => void }) {
   const [shown, setShown] = useState(text.length > 240 ? text : "");
   useEffect(() => {
-    if (text.length > 240) return; // long blocks render instantly
+    if (text.length > 240) {
+      onReveal?.(); // long blocks render instantly — still pin to bottom
+      return;
+    }
     let i = 0;
     const total = text.length;
     const step = Math.max(1, Math.ceil(total / 60)); // ~60 frames max
     const t = setInterval(() => {
       i = Math.min(total, i + step);
       setShown(text.slice(0, i));
+      onReveal?.(); // keep the growing line pinned to the bottom each tick
       if (i >= total) clearInterval(t);
     }, 16);
     return () => clearInterval(t);
@@ -58,11 +62,13 @@ export function TerminalWindow({
   const bodyRef = useRef<HTMLDivElement>(null);
   const latestId = lines.length ? lines[lines.length - 1].id : "";
 
-  // Stick to bottom as new lines stream in.
-  useLayoutEffect(() => {
+  const scrollToBottom = () => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length, latestId]);
+  };
+
+  // Stick to bottom as new lines stream in.
+  useLayoutEffect(scrollToBottom, [lines.length, latestId]);
 
   const light = (cls: string, title: string, handler?: () => void) =>
     handler ? (
@@ -98,7 +104,7 @@ export function TerminalWindow({
             <div key={l.id} className="sh-line">
               <span className={KIND_CLASS[l.kind]}>{KIND_PREFIX[l.kind]} </span>
               <span className="sh-pre">{l.from}{l.to ? `→${l.to}` : ""} </span>
-              {l.id === latestId ? <TypingLine text={l.text} /> : l.text}
+              {l.id === latestId ? <TypingLine text={l.text} onReveal={scrollToBottom} /> : l.text}
             </div>
           ))}
         </div>
