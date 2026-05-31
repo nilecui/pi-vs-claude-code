@@ -65,7 +65,8 @@ code {
   font-size: 12px; color: var(--amber-text);
 }
 
-.app { display: grid; grid-template-columns: 280px 1fr 320px; height: 100vh; }
+.app { display: flex; flex-direction: column; height: 100vh; }
+.app-body { flex: 1; display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
 
 .brand { display: flex; align-items: center; gap: 11px; padding: 2px 2px 12px; border-bottom: 1px solid var(--border); }
 .brand-logo {
@@ -165,7 +166,6 @@ code {
 /* ── Left rail ───────────────────────────────────────── */
 .rail-left { background: var(--panel); backdrop-filter: blur(16px); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px; gap: 12px; overflow: hidden; }
 .rail-center { position: relative; min-width: 0; background: var(--bg); }
-.rail-right { background: var(--streams-bg); border-left: 1px solid var(--border); overflow-y: auto; padding: 10px; }
 
 /* ── Add agent ───────────────────────────────────────── */
 .add-agent-toggle { width: 100%; background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 12px; padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-cta); }
@@ -200,16 +200,32 @@ code {
 .composer { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--hairline-soft); padding-top: 8px; }
 .composer textarea { resize: none; height: 52px; }
 
-/* ── Log rail accordion ──────────────────────────────── */
-.log-rail { display: flex; flex-direction: column; }
-.log-acc { border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); margin-bottom: 8px; overflow: hidden; }
-.log-acc.sel { border-color: var(--primary); }
-.log-acc-head { display: flex; align-items: center; gap: 7px; width: 100%; border: 0; background: var(--muted-surface); padding: 8px 10px; cursor: pointer; font-size: 12px; color: var(--text); }
-.log-acc-head.static { cursor: default; }
-.log-chev { margin-left: auto; color: var(--muted); }
-.log-acc-body { height: 220px; }
-.log-acc-body .term-card { border: 0; border-radius: 0; box-shadow: none; height: 100%; }
-.log-acc.collapsed .log-acc-body { display: none; }
-
-.demo-btn { width: 100%; background: var(--muted-surface); color: var(--primary-strong); border: 1px solid var(--hairline); border-radius: 12px; padding: 8px; font-size: 12px; font-weight: 500; cursor: pointer; }
-.demo-btn:hover { background: hsl(217 91% 60% / .08); }
+/* ── Top terminal strip ─────────────────────────────── */
+.term-strip { display: flex; gap: 10px; padding: 10px 12px; overflow-x: auto; background: var(--muted-surface); border-bottom: 1px solid var(--border); }
+.macterm { flex: 0 0 auto; width: 280px; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
+.macterm:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.macterm.sel { border-color: var(--primary); box-shadow: 0 0 0 3px hsl(217 91% 60% / .25); }
+.macterm-bar { display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: #161b22; border-bottom: 1px solid #1f2630; }
+.macterm-lights { display: flex; gap: 6px; }
+.macterm-light { width: 11px; height: 11px; border-radius: 50%; }
+.l-red { background: #ff5f56; } .l-yellow { background: #ffbd2e; } .l-green { background: #27c93f; }
+.macterm-title { font-size: 11px; color: #c9d1d9; font-weight: 600; margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.macterm-model { font-size: 10px; color: #6e7681; margin-left: auto; font-family: "Geist Mono", ui-monospace, Menlo, monospace; flex: 0 0 auto; }
+.macterm-body { height: 110px; overflow-y: auto; padding: 8px 10px; font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; line-height: 1.5; color: #c9d1d9; background: #0d1117; }
+.macterm-body.big { height: 100%; font-size: 13px; }
+.sh-empty { color: #6e7681; font-style: italic; }
+.sh-line { white-space: pre-wrap; word-break: break-word; margin-bottom: 2px; }
+.sh-pre { color: #6e7681; }
+.sh-prompt { color: #58a6ff; } .sh-response { color: #3fb950; } .sh-error { color: #f85149; } .sh-muted { color: #6e7681; }
+/* ── Terminal zoom modal ────────────────────────────── */
+.term-modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,.55); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.term-modal { width: 72vw; max-width: 920px; height: 70vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(2,6,23,.4); border-radius: 12px; overflow: hidden; }
+.term-modal .macterm { width: 100%; height: 100%; cursor: default; }
+.term-modal-close { position: absolute; top: 14px; right: 18px; z-index: 51; width: 30px; height: 30px; border: 0; border-radius: 8px; background: #161b22; color: #c9d1d9; cursor: pointer; }
+/* ── Scenario menu ──────────────────────────────────── */
+.scenario-menu { display: flex; flex-direction: column; gap: 6px; }
+.scenario-btn { text-align: left; border: 1px solid var(--hairline); background: var(--card); border-radius: 10px; padding: 7px 10px; cursor: pointer; }
+.scenario-btn:hover { border-color: hsl(217 91% 60% / .4); background: hsl(217 91% 60% / .05); }
+.scenario-btn b { display: block; font-size: 12px; color: var(--text); }
+.scenario-btn span { font-size: 10px; color: var(--muted); }
+.scenario-clear { border: 1px solid var(--hairline); background: var(--muted-surface); color: var(--muted); border-radius: 10px; padding: 6px; font-size: 11px; cursor: pointer; }
