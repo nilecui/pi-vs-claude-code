@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { HubClient } from "./api/hub";
 import type { AgentCard, SseEvent, StreamLine } from "./types";
+import { orchestratePrompt } from "./lib/orchestratePrompt";
 
 export const DASHBOARD_ID = "__dashboard__";
 const MAX_LINES = 500;
@@ -27,6 +28,7 @@ interface State {
   init: () => void;
   shutdown: () => void;
   send: (target: string, prompt: string) => Promise<void>;
+  orchestrate: (fromName: string, toName: string, task: string) => Promise<void>;
   select: (sessionId?: string) => void;
   clearFlow: (id: string) => void;
 }
@@ -215,6 +217,24 @@ export const useStore = create<State>((set, get) => {
         await client.send(target, prompt);
       } catch (err) {
         pushLine({ id: nextId(), ts: Date.now(), kind: "error", from: "hub", text: `send failed: ${err}` });
+      }
+    },
+
+    async orchestrate(fromName, toName, task) {
+      const client = get().client;
+      if (!client) return;
+      const agents = get().agents;
+      const fromSession = sessionByName(agents, fromName) ?? fromName;
+      const toSession = sessionByName(agents, toName) ?? toName;
+      pulse(fromSession, toSession, "prompt");
+      pushLine(
+        { id: nextId(), ts: Date.now(), kind: "prompt", from: fromName, to: toName, text: `(orchestrate) ${task}` },
+        fromSession in agents ? fromSession : undefined,
+      );
+      try {
+        await client.send(fromName, orchestratePrompt(toName, task));
+      } catch (err) {
+        pushLine({ id: nextId(), ts: Date.now(), kind: "error", from: "hub", text: `orchestrate failed: ${err}` });
       }
     },
 
