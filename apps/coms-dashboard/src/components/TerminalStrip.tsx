@@ -52,6 +52,8 @@ export function TerminalStrip() {
       <div className="term-strip-wrap">
         <button className="term-strip-toggle" onClick={() => setCollapsed((c) => !c)}>
           <span>{collapsed ? "▸" : "▾"}</span> 终端 · {visibleList.length}
+          <span className="term-strip-action" onClick={(e) => { e.stopPropagation(); setMinimized(new Set(visibleList.map((a) => a.session_id))); }}>全部最小化</span>
+          <span className="term-strip-action" onClick={(e) => { e.stopPropagation(); setMinimized(new Set()); setClosed(new Set()); setCollapsed(false); }}>全部展示</span>
           {closed.size > 0 && (
             <span className="term-restore" onClick={(e) => { e.stopPropagation(); setClosed(new Set()); }}>显示已关闭 ({closed.size})</span>
           )}
