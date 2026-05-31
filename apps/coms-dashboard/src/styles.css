@@ -259,3 +259,6 @@ code {
 .log-acc-body { height: 220px; }
 .log-acc-body .term-card { border: 0; border-radius: 0; box-shadow: none; height: 100%; }
 .log-acc.collapsed .log-acc-body { display: none; }
+
+.demo-btn { width: 100%; background: var(--muted-surface); color: var(--primary-strong); border: 1px solid var(--hairline); border-radius: 12px; padding: 8px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.demo-btn:hover { background: hsl(217 91% 60% / .08); }
