@@ -46,17 +46,21 @@ export function TerminalStrip() {
   }, [selected, selectNonce, agents]);
 
   const zoomAgent = zoom ? agents[zoom] : undefined;
+  const allMin = visibleList.length > 0 && visibleList.every((a) => minimized.has(a.session_id));
 
   return (
     <>
       <div className="term-strip-wrap">
         <button className="term-strip-toggle" onClick={() => setCollapsed((c) => !c)}>
           <span>{collapsed ? "▸" : "▾"}</span> 终端 · {visibleList.length}
-          <span className="term-strip-action" onClick={(e) => { e.stopPropagation(); setMinimized(new Set(visibleList.map((a) => a.session_id))); }}>全部最小化</span>
-          <span className="term-strip-action" onClick={(e) => { e.stopPropagation(); setMinimized(new Set()); setClosed(new Set()); setCollapsed(false); }}>全部展示</span>
-          {closed.size > 0 && (
-            <span className="term-restore" onClick={(e) => { e.stopPropagation(); setClosed(new Set()); }}>显示已关闭 ({closed.size})</span>
-          )}
+          <span className="term-strip-right">
+            {!collapsed && visibleList.length > 0 && (
+              <span className="term-strip-action" onClick={(e) => { e.stopPropagation(); setMinimized(allMin ? new Set() : new Set(visibleList.map((a) => a.session_id))); }}>{allMin ? "全部展示" : "全部最小化"}</span>
+            )}
+            {closed.size > 0 && (
+              <span className="term-restore" onClick={(e) => { e.stopPropagation(); setClosed(new Set()); }}>显示已关闭 ({closed.size})</span>
+            )}
+          </span>
         </button>
         {!collapsed && (
           <div className="term-strip">

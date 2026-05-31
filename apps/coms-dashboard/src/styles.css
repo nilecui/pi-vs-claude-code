@@ -204,9 +204,9 @@ code {
 .term-strip-wrap { border-bottom: 1px solid var(--border); background: var(--muted-surface); }
 .term-strip-toggle { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; padding: 6px 12px; font-size: 11px; color: var(--muted); cursor: pointer; }
 .term-strip-toggle > span:first-child { color: var(--text); }
-.term-restore { color: var(--primary-strong); font-size: 10px; margin-left: 10px; }
-.term-strip-action { color: var(--primary-strong); font-size: 10px; cursor: pointer; margin-left: 10px; }
-.term-strip-action:first-of-type { margin-left: auto; }
+.term-strip-right { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; }
+.term-restore { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
+.term-strip-action { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
 .term-strip { display: flex; gap: 10px; padding: 10px 12px; overflow-x: auto; background: var(--muted-surface); border-bottom: 0; }
 .macterm { flex: 0 0 auto; width: 280px; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
 .macterm:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
