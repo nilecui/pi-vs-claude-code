@@ -120,7 +120,13 @@ export function FlowGraph() {
       // Margin kept around content when auto-fitting / fitView (5.1.1 FitViewOptions
       // has no padding key — padding lives at the viewport/graph level).
       padding: 48,
-      animation: true,
+      // Disable G6's built-in element/layout transition animations. Our rAF loop
+      // drives ALL the motion (flowing dash + halo breathing) via plain style
+      // writes + draw, so data updates (heartbeats, pulses, add/remove) apply
+      // instantly and never schedule a G6 transition — which under frequent
+      // agent_updated heartbeats raced the rAF micro-updates and threw inside
+      // G6's animation merge (reading 'onUpdate' of undefined).
+      animation: false,
       data: buildBaseData(useStore.getState().agents, useStore.getState().edgeCounts),
       layout: asLayout(LAYOUTS.tree),
       node: {
