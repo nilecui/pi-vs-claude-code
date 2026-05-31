@@ -5,6 +5,7 @@ import { FlowGraph } from "./components/FlowGraph";
 import { NodePanel } from "./components/NodePanel";
 import { TerminalStrip } from "./components/TerminalStrip";
 import { ScenarioMenu } from "./components/ScenarioMenu";
+import { Broadcast } from "./components/Broadcast";
 import { useStore } from "./store";
 import { CONN_STATUS_LABEL } from "./lib/labels";
 
@@ -35,6 +36,7 @@ export default function App() {
           </div>
           <AddAgentForm />
           <ScenarioMenu />
+          <Broadcast />
           <AgentList />
         </aside>
 

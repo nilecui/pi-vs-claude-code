@@ -32,6 +32,7 @@ interface State {
   init: () => void;
   shutdown: () => void;
   send: (target: string, prompt: string) => Promise<void>;
+  broadcast: (targetNames: string[], prompt: string) => Promise<void>;
   orchestrate: (fromName: string, toName: string, task: string) => Promise<void>;
   select: (sessionId?: string) => void;
   clearFlow: (id: string) => void;
@@ -236,6 +237,10 @@ export const useStore = create<State>((set, get) => {
       } catch (err) {
         pushLine({ id: nextId(), ts: Date.now(), kind: "error", from: "hub", text: `send failed: ${err}` });
       }
+    },
+
+    async broadcast(targetNames, prompt) {
+      await Promise.all(targetNames.map((name) => get().send(name, prompt)));
     },
 
     async orchestrate(fromName, toName, task) {
