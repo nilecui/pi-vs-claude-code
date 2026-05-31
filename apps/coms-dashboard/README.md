@@ -49,14 +49,24 @@ bun run dev          # http://localhost:5273
 | Dashboard → agent messages + their responses | ✅ |
 | Animated graph pulses for panel↔agent traffic | ✅ |
 | Per-agent terminal stream cards | ✅ |
-| Passively observing **agent ↔ agent** conversations | ⚠️ not yet |
+| Passively observing **agent ↔ agent** conversations | ✅ with observer firehose |
 
-The hub unicasts `prompt`/`response` only to the two participants, so a passive
-observer can't see peer-to-peer chatter. To enable that, the hub needs a small
-"observer firehose" patch that broadcasts a sanitized copy of each message to
-`explicit` observer streams. The store already handles those events
-(`prompt`/`response` carry `sender_session`), so the UI lights up automatically
-once the hub forwards them.
+### Observer firehose (agent ↔ agent visibility)
+
+By default the hub unicasts `prompt`/`response` only to the two participants, so
+a passive observer can't see peer-to-peer chatter. Enable the firehose on the
+hub to mirror a **sanitized copy** of every peer message to `explicit` observer
+streams (like this dashboard):
+
+```bash
+PI_COMS_NET_OBSERVER_FIREHOSE=1 just coms-net-server
+```
+
+The dashboard registers as an `explicit` observer, so once the firehose is on it
+receives `observe` events and animates the graph edge between the two peers and
+appends to both of their terminal cards. The sender and target are skipped from
+the firehose (they already get the unicast), so there's no duplication. When the
+flag is off, peer traffic stays private and nothing is broadcast.
 
 ## Stack
 

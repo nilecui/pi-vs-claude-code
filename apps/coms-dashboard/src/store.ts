@@ -34,8 +34,27 @@ interface State {
 let lineSeq = 0;
 const nextId = () => `${Date.now()}-${lineSeq++}`;
 
+function responseText(response: unknown, error: string | null | undefined): string {
+  if (error != null) return `⚠ ${error}`;
+  if (typeof response === "string") return response;
+  return JSON.stringify(response, null, 2);
+}
+
 function sessionByName(agents: Record<string, AgentCard>, name: string): string | undefined {
   return Object.values(agents).find((a) => a.name === name)?.session_id;
+}
+
+// The hub sends sender/responder as { session_id, name }, but tolerate a bare
+// string (name or session_id) for forward/backward compat.
+function refName(ref: { name: string } | string): string {
+  return typeof ref === "string" ? ref : ref.name;
+}
+function refSession(
+  ref: { session_id?: string; name: string } | string,
+  agents: Record<string, AgentCard>,
+): string {
+  if (typeof ref !== "string") return ref.session_id ?? sessionByName(agents, ref.name) ?? ref.name;
+  return sessionByName(agents, ref) ?? ref;
 }
 
 export const useStore = create<State>((set, get) => {
@@ -96,29 +115,53 @@ export const useStore = create<State>((set, get) => {
         break;
 
       case "prompt": {
-        // Arrives when someone targets the dashboard, or (with a hub firehose) for any pair.
-        const fromSession = e.data.sender_session ?? sessionByName(agents, e.data.sender) ?? e.data.sender;
+        // A peer is messaging the dashboard directly.
+        const fromName = refName(e.data.sender);
+        const fromSession = refSession(e.data.sender, agents);
         pulse(fromSession, DASHBOARD_ID, "prompt");
         pushLine(
-          { id: nextId(), ts: Date.now(), kind: "prompt", from: e.data.sender, msg_id: e.data.msg_id, text: e.data.prompt },
+          { id: nextId(), ts: Date.now(), kind: "prompt", from: fromName, to: "dashboard", msg_id: e.data.msg_id, text: e.data.prompt },
           fromSession in agents ? fromSession : undefined,
         );
         break;
       }
 
       case "response": {
-        const fromSession = sessionByName(agents, e.data.responder) ?? e.data.responder;
+        const fromName = refName(e.data.responder);
+        const fromSession = refSession(e.data.responder, agents);
         const isErr = e.data.error != null || e.data.status === "error";
         pulse(fromSession, DASHBOARD_ID, isErr ? "error" : "response");
-        const text = isErr
-          ? `⚠ ${e.data.error ?? "error"}`
-          : typeof e.data.response === "string"
-            ? e.data.response
-            : JSON.stringify(e.data.response, null, 2);
         pushLine(
-          { id: nextId(), ts: Date.now(), kind: isErr ? "error" : "response", from: e.data.responder, msg_id: e.data.msg_id, text },
+          { id: nextId(), ts: Date.now(), kind: isErr ? "error" : "response", from: fromName, msg_id: e.data.msg_id, text: responseText(e.data.response, e.data.error) },
           fromSession in agents ? fromSession : undefined,
         );
+        break;
+      }
+
+      case "observe": {
+        // Firehose copy of a peer↔peer message the dashboard isn't a party to.
+        const fromName = e.data.sender.name;
+        const toName = e.data.target.name;
+        const fromSession = e.data.sender.session_id;
+        const toSession = e.data.target.session_id;
+        const isErr = e.data.phase === "response" && (e.data.error != null || e.data.status === "error");
+        pulse(fromSession, toSession, isErr ? "error" : e.data.phase);
+        const text =
+          e.data.phase === "prompt"
+            ? e.data.prompt ?? ""
+            : responseText(e.data.response, e.data.error ?? null);
+        const line: StreamLine = {
+          id: nextId(), ts: Date.now(),
+          kind: isErr ? "error" : e.data.phase,
+          from: fromName, to: toName, msg_id: e.data.msg_id, text,
+        };
+        // Show on both participants' cards so the conversation reads on either side.
+        pushLine(line, fromSession in agents ? fromSession : undefined);
+        if (toSession in agents) {
+          set((s) => ({
+            linesByAgent: { ...s.linesByAgent, [toSession]: [...(s.linesByAgent[toSession] ?? []), line].slice(-MAX_LINES) },
+          }));
+        }
         break;
       }
 

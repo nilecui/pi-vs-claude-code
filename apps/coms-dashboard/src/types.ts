@@ -58,8 +58,8 @@ export type SseEvent =
       event: "prompt";
       data: {
         msg_id: string;
-        sender: string;
-        sender_session?: string;
+        // The hub sends sender as an object; tolerate a bare string too.
+        sender: AgentRef | string;
         prompt: string;
         hops?: number;
       };
@@ -68,13 +68,35 @@ export type SseEvent =
       event: "response";
       data: {
         msg_id: string;
-        responder: string;
+        responder: AgentRef | string;
         response: unknown;
         error: string | null;
         status: MessageStatus;
       };
     }
-  | { event: "message_status"; data: { msg_id: string; status: MessageStatus } };
+  | { event: "message_status"; data: { msg_id: string; status: MessageStatus } }
+  // Observer firehose (hub: PI_COMS_NET_OBSERVER_FIREHOSE=1): a sanitized copy of
+  // every peer↔peer prompt/response, so the panel can watch conversations it is
+  // not a party to.
+  | {
+      event: "observe";
+      data: {
+        phase: "prompt" | "response";
+        msg_id: string;
+        sender: AgentRef;
+        target: AgentRef;
+        status: MessageStatus;
+        hops?: number;
+        prompt?: string;
+        response?: unknown;
+        error?: string | null;
+      };
+    };
+
+export interface AgentRef {
+  session_id: string;
+  name: string;
+}
 
 // ── Local model of an observed conversation line, rendered in terminal cards ──
 export interface StreamLine {

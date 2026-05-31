@@ -100,6 +100,7 @@ export class HubClient {
       "prompt",
       "response",
       "message_status",
+      "observe",
     ];
     for (const name of named) {
       es.addEventListener(name, (ev) => {

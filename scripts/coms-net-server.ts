@@ -42,6 +42,14 @@ const HEARTBEAT_MS = Number(process.env.PI_COMS_NET_HEARTBEAT_MS ?? 10_000);
 const STALE_AFTER_MS = Number(process.env.PI_COMS_NET_STALE_AFTER_MS ?? 30_000);
 const OFFLINE_AFTER_MS = Number(process.env.PI_COMS_NET_OFFLINE_AFTER_MS ?? 60_000);
 
+// Observer firehose: when enabled, a sanitized copy of every prompt/response is
+// broadcast as an `observe` event to `explicit` observer streams (e.g. the web
+// dashboard), so a third party can watch agent↔agent conversations it isn't a
+// party to. Off by default — peer traffic is private unless an operator opts in.
+const OBSERVER_FIREHOSE =
+	(process.env.PI_COMS_NET_OBSERVER_FIREHOSE ?? "").toLowerCase() === "1" ||
+	(process.env.PI_COMS_NET_OBSERVER_FIREHOSE ?? "").toLowerCase() === "true";
+
 const STALE_SCAN_INTERVAL_MS = 5_000;
 const TTL_SCAN_INTERVAL_MS = 10_000;
 const SSE_KEEPALIVE_MS = 15_000;
@@ -482,6 +490,41 @@ function sendToStream(
 		w.enqueue(sseFrame(event, data, id));
 	} catch {
 		// dead; abort handler will reap
+	}
+}
+
+// Broadcast a sanitized `observe` frame to every `explicit` observer stream,
+// skipping the message's own sender and target (they already get the unicast
+// prompt/response). No-op unless OBSERVER_FIREHOSE is enabled.
+function observe(
+	p: ProjectState,
+	phase: "prompt" | "response",
+	msg: ComsMessage,
+	extra: Record<string, unknown> = {},
+): void {
+	if (!OBSERVER_FIREHOSE) return;
+	const senderName = p.agents.get(msg.sender_session)?.name ?? "(gone)";
+	const targetName = p.agents.get(msg.target_session)?.name ?? "(gone)";
+	const data = {
+		phase,
+		msg_id: msg.msg_id,
+		project: msg.project,
+		sender: { session_id: msg.sender_session, name: senderName },
+		target: { session_id: msg.target_session, name: targetName },
+		status: msg.status,
+		hops: msg.hops,
+		...extra,
+	};
+	for (const [sid, w] of p.streams) {
+		const a = p.agents.get(sid);
+		if (!a || !a.explicit) continue; // observers only
+		if (sid === msg.sender_session || sid === msg.target_session) continue;
+		const id = ++w.lastId;
+		try {
+			w.enqueue(sseFrame("observe", data, id));
+		} catch {
+			// dead; abort handler will reap
+		}
 	}
 }
 
@@ -945,6 +988,9 @@ async function handleSendMessage(req: Request): Promise<Response> {
 		});
 	}
 
+	// Mirror to observers (no-op unless the firehose is enabled).
+	observe(p, "prompt", msg, { prompt: msg.prompt });
+
 	logMessageSend(
 		sender.name,
 		target.name,
@@ -1166,6 +1212,9 @@ async function handleSubmitResponse(
 		msg_id: msg.msg_id,
 		status: msg.status,
 	});
+
+	// Mirror to observers (no-op unless the firehose is enabled).
+	observe(project, "response", msg, { response: msg.response, error: msg.error });
 
 	releaseAwaiters(project, msg_id);
 
@@ -1511,6 +1560,9 @@ export function main(): void {
 		console.log(`${bootDim}          server.secret.json=${secretPath} (chmod 0600)${bootReset}`);
 	} else {
 		console.log(`${bootDim}          using token from PI_COMS_NET_AUTH_TOKEN${bootReset}`);
+	}
+	if (OBSERVER_FIREHOSE) {
+		console.log(`${bootDim}          observer firehose ON — peer prompt/response mirrored to observer streams${bootReset}`);
 	}
 	if (!LOG_QUIET) {
 		console.log(`${bootDim}          ─── events below (Ctrl-C to quit, set PI_COMS_NET_LOG_HEARTBEAT=1 for heartbeat noise) ───${bootReset}`);
