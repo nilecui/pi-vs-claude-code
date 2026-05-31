@@ -11,8 +11,6 @@ export default function App() {
   const init = useStore((s) => s.init);
   const shutdown = useStore((s) => s.shutdown);
   const status = useStore((s) => s.status);
-  const seedDemo = useStore((s) => s.seedDemo);
-
   useEffect(() => {
     init();
     return () => shutdown();
@@ -33,7 +31,6 @@ export default function App() {
           </div>
         </div>
         <AddAgentForm />
-        <button className="demo-btn" onClick={() => seedDemo()}>▶ 演示:Prod/Dev 复现</button>
         <AgentList />
       </aside>
 
