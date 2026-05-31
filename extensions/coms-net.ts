@@ -269,6 +269,16 @@ function findSystemPromptPath(argv: string[]): string | null {
 	return scan("--system-prompt") ?? scan("--append-system-prompt");
 }
 
+function readNameFromArgv(argv: string[]): string | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    if ((argv[i] === "--name" || argv[i] === "-n") && i + 1 < argv.length) {
+      const v = argv[i + 1];
+      if (v && !v.startsWith("-") && v.length > 0) return v;
+    }
+  }
+  return undefined;
+}
+
 function readFrontmatterFromArgv(argv: string[]): { name?: string; description?: string; color?: string } {
 	const p = findSystemPromptPath(argv);
 	if (!p) return {};
@@ -881,7 +891,7 @@ export default function (pi: ExtensionAPI) {
 		const session_id = ulid();
 
 		const defaultName = `agent-${session_id.slice(-6)}`;
-		const desiredName = flags.name || fm.name || defaultName;
+		const desiredName = flags.name || readNameFromArgv(process.argv) || fm.name || defaultName;
 		const purpose = flags.purpose || fm.description || "";
 
 		// Color — fallback chain: --color > frontmatter > deterministic.
