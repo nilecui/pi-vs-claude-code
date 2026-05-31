@@ -142,6 +142,11 @@ coms-net-server-lan:
 dashboard:
     cd apps/coms-dashboard && bun install && bun run dev
 
+# End-to-end test for the observer firehose. Boots its own isolated hub, asserts
+# observers see peer prompt/response when on and nothing when off, then cleans up.
+test-firehose:
+    bun scripts/coms-net-firehose.test.ts
+
 # Pi with networked coms client (auto-discovers local server.json)
 # Pass any flags through, e.g.: just ext-coms-net --name dev --server-url http://… --auth-token …
 coms *args:
