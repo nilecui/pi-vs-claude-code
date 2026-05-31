@@ -100,11 +100,13 @@ export function FlowGraph() {
       const id = evt.target?.id;
       if (id && id !== DASHBOARD_ID) select(id);
     });
-    graph.render().catch(() => {});
+    const rendered = graph.render().catch(() => {});
     graphRef.current = graph;
     return () => {
-      graph.destroy();
       graphRef.current = null;
+      // Defer destroy until the in-flight render settles, so StrictMode's
+      // mount→cleanup→mount cycle never destroys a graph mid-render.
+      void rendered.finally(() => graph.destroy());
     };
   }, [select]);
 
