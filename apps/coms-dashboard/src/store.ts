@@ -149,7 +149,7 @@ export const useStore = create<State>((set, get) => {
         const isErr = e.data.error != null || e.data.status === "error";
         pulse(fromSession, DASHBOARD_ID, isErr ? "error" : "response");
         pushLine(
-          { id: nextId(), ts: Date.now(), kind: isErr ? "error" : "response", from: fromName, msg_id: e.data.msg_id, text: responseText(e.data.response, e.data.error) },
+          { id: nextId(), ts: Date.now(), kind: isErr ? "error" : "response", from: fromName, to: "dashboard", msg_id: e.data.msg_id, text: responseText(e.data.response, e.data.error) },
           fromSession in agents ? fromSession : undefined,
         );
         break;
