@@ -142,6 +142,10 @@ coms-net-server-lan:
 dashboard:
     cd apps/coms-dashboard && bun install && bun run dev
 
+# Local agent spawner — lets the dashboard launch pi agents in tmux (PTY). 127.0.0.1 only.
+spawner:
+    bun scripts/agent-spawner.ts
+
 # End-to-end test for the observer firehose. Boots its own isolated hub, asserts
 # observers see peer prompt/response when on and nothing when off, then cleans up.
 test-firehose:

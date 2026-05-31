@@ -28,6 +28,7 @@ export function AddAgentForm() {
   const [color, setColor] = useState("");
   const [bare, setBare] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [launchMsg, setLaunchMsg] = useState("");
 
   const dup = name.trim().length > 0 && names.has(name.trim());
   const sel = PRESETS[preset];
@@ -49,6 +50,27 @@ export function AddAgentForm() {
     } catch {
       setCopied(false);
       window.prompt("复制启动命令:", command);
+    }
+  }
+
+  async function launch() {
+    setLaunchMsg("启动中…");
+    try {
+      const r = await fetch("/spawner/spawn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          provider: spec.provider,
+          model: spec.model,
+          purpose: spec.purpose,
+          color: spec.color,
+        }),
+      });
+      const j = await r.json();
+      setLaunchMsg(j.ok ? "已启动 ✓ 稍候出现在池中" : "启动失败:" + (j.error || r.status));
+    } catch {
+      setLaunchMsg("spawner 未运行 — 先跑 just spawner,或用上面的命令手动启动");
     }
   }
 
@@ -96,9 +118,13 @@ export function AddAgentForm() {
           <div className="cmd-preview">
             <code>{command}</code>
           </div>
-          <button className="send-btn" disabled={!name.trim() || dup} onClick={copy}>
-            {copied ? "已复制 ✓" : "复制命令"}
-          </button>
+          <div className="add-agent-actions">
+            <button className="send-btn" disabled={!name.trim() || dup} onClick={copy}>
+              {copied ? "已复制 ✓" : "复制命令"}
+            </button>
+            <button className="send-btn" disabled={!name.trim() || dup} onClick={launch}>▶ 启动</button>
+          </div>
+          {launchMsg && <div className="add-agent-hint">{launchMsg}</div>}
           <div className="add-agent-hint">在仓库根目录的终端里粘贴运行,agent 注册后会出现在池中。</div>
         </div>
       )}

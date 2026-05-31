@@ -81,6 +81,11 @@ export default defineConfig({
           });
         },
       },
+      "/spawner": {
+        target: `http://127.0.0.1:${process.env.PI_SPAWNER_PORT ?? 5274}`,
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/spawner/, ""),
+      },
     },
   },
 });
