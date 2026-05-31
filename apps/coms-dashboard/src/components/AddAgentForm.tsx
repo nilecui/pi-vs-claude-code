@@ -7,6 +7,8 @@ const PRESETS: Record<string, { provider?: string; model?: string }> = {
   "claude-opus-4-7": { model: "claude-opus-4-7" },
   "deepseek/deepseek-v4-pro": { model: "deepseek/deepseek-v4-pro" },
   "z-ai/glm-5.1": { model: "z-ai/glm-5.1" },
+  "MiniMax-M2.7": { provider: "minimax", model: "MiniMax-M2.7" },
+  "Codex 订阅 · gpt-5.5": { provider: "openai-codex", model: "gpt-5.5" },
   custom: {},
 };
 
