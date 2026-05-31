@@ -76,7 +76,7 @@ export function FlowGraph() {
   const flows = useStore((s) => s.flows);
   const edgeCounts = useStore((s) => s.edgeCounts);
   const select = useStore((s) => s.select);
-  const [layout, setLayout] = useState<LayoutKey>("force");
+  const [layout, setLayout] = useState<LayoutKey>("tree");
   // Ids of pulse edges currently drawn, for incremental add/remove reconciliation.
   const drawn = useRef<Set<string>>(new Set());
   // Render lock: true while a (re)layout render() is in flight, so the rAF draw
@@ -91,7 +91,7 @@ export function FlowGraph() {
       autoFit: "center",
       animation: true,
       data: buildBaseData(useStore.getState().agents, useStore.getState().edgeCounts),
-      layout: asLayout(LAYOUTS.force),
+      layout: asLayout(LAYOUTS.tree),
       node: {
         type: "circle",
         style: {
@@ -310,9 +310,31 @@ export function FlowGraph() {
       });
   }, [layout]);
 
+  // Viewport controls (zoom/fit). These don't relayout data, but still guard
+  // against a destroyed instance and swallow any rejection so the console stays clean.
+  const zoomBy = (ratio: number) => {
+    const g = graphRef.current;
+    if (!g || g.destroyed) return;
+    try {
+      void g.zoomBy(ratio).catch(() => {});
+    } catch {}
+  };
+  const fitView = () => {
+    const g = graphRef.current;
+    if (!g || g.destroyed) return;
+    try {
+      void g.fitView().catch(() => {});
+    } catch {}
+  };
+
   return (
     <div className="graph-wrap">
       <div className="graph-canvas" ref={containerRef} />
+      <div className="graph-controls">
+        <button title="放大" onClick={() => zoomBy(1.2)}>＋</button>
+        <button title="缩小" onClick={() => zoomBy(1 / 1.2)}>－</button>
+        <button title="居中适配" onClick={fitView}>⤢</button>
+      </div>
       <div className="layout-switch">
         <span className="section-label">视角</span>
         {(Object.keys(LAYOUTS) as LayoutKey[]).map((k) => (

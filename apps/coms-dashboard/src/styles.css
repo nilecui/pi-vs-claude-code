@@ -229,3 +229,8 @@ code {
 .scenario-btn b { display: block; font-size: 12px; color: var(--text); }
 .scenario-btn span { font-size: 10px; color: var(--muted); }
 .scenario-clear { border: 1px solid var(--hairline); background: var(--muted-surface); color: var(--muted); border-radius: 10px; padding: 6px; font-size: 11px; cursor: pointer; }
+
+/* Graph viewport controls (zoom / fit), bottom-right of the graph canvas. */
+.graph-controls { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; padding: 4px; backdrop-filter: blur(4px); box-shadow: var(--shadow-card); }
+.graph-controls button { width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.graph-controls button:hover { background: hsl(217 91% 60% / .1); color: var(--primary-strong); }
