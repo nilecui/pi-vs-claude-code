@@ -173,7 +173,7 @@ export function FlowGraph() {
     // graph and cancelled on cleanup so it can never log to the console.
     let raf = 0;
     let last = 0;
-    let dashOffset = 0;
+    let offset = 0;
     const tick = (t: number) => {
       raf = requestAnimationFrame(tick);
       if (t - last < 50) return; // ~20fps
@@ -181,18 +181,24 @@ export function FlowGraph() {
       const g = graphRef.current;
       if (!g || g.destroyed) return;
       try {
-        dashOffset = (dashOffset + 1.2) % 1000;
-        const breath = 0.18 + 0.1 * (0.5 + 0.5 * Math.sin(t / 1000)); // ~2s ease loop
-        const edgeUpdates = g.getEdgeData().map((e: any) => ({
+        offset = (offset + 1.2) % 1000;
+        // Re-read CURRENT edges/nodes every frame, so removed pulse edges simply
+        // aren't in the list (no stale id) and added ones get picked up.
+        const eUpdates = g.getEdgeData().map((e: any) => ({
           id: e.id,
-          style: { lineDashOffset: -dashOffset },
+          style: { lineDashOffset: -offset * (e.id?.startsWith("flow-") ? 2 : 1) },
         }));
-        const nodeUpdates = g
+        if (eUpdates.length) g.updateEdgeData(eUpdates);
+        // Halo breathing on online nodes (~ sine loop).
+        const nUpdates = g
           .getNodeData()
           .filter((n: any) => n.data?.status === "online")
-          .map((n: any) => ({ id: n.id, style: { haloStrokeOpacity: breath } }));
-        if (edgeUpdates.length) g.updateEdgeData(edgeUpdates);
-        if (nodeUpdates.length) g.updateNodeData(nodeUpdates);
+          .map((n: any) => ({
+            id: n.id,
+            style: { haloStrokeOpacity: 0.18 + 0.1 * (0.5 + 0.5 * Math.sin(offset * 0.15)) },
+          }));
+        if (nUpdates.length) g.updateNodeData(nUpdates);
+        // The rAF loop is the SOLE repeated renderer.
         g.draw().catch(() => {});
       } catch {}
     };
@@ -207,18 +213,38 @@ export function FlowGraph() {
     };
   }, [select]);
 
-  // Rebuild base nodes/edges when the agent pool OR message counts change.
+  // Rebuild base nodes/edges + relayout ONLY when the agent pool changes (rare).
+  // It seeds initial labels from current counts but does NOT re-run on count
+  // changes — counts update incrementally below, so setData/render never races
+  // the rAF draw loop. The rAF loop is the only repeated renderer.
   useEffect(() => {
     const g = graphRef.current;
     if (!g || g.destroyed) return;
     try {
-      g.setData(buildBaseData(agents, edgeCounts));
+      g.setData(buildBaseData(agents, useStore.getState().edgeCounts));
       // Base data no longer carries pulse edges; clear our reconciliation set so
       // the pulse effect re-adds any still-active flows on the fresh dataset.
       drawn.current.clear();
       g.render().catch(() => {});
     } catch {}
-  }, [agents, edgeCounts]);
+  }, [agents]);
+
+  // Update only the message-count labels on base edges when counts change.
+  // No setData / render / draw — the rAF loop renders next frame.
+  useEffect(() => {
+    const g = graphRef.current;
+    if (!g || g.destroyed) return;
+    try {
+      const updates = g
+        .getEdgeData()
+        .filter((e: any) => e.id?.startsWith("base-"))
+        .map((e: any) => {
+          const count = edgeCounts[edgeKey(e.source, e.target)] ?? 0;
+          return { id: e.id, style: { labelText: count > 0 ? String(count) : undefined } };
+        });
+      if (updates.length) g.updateEdgeData(updates);
+    } catch {}
+  }, [edgeCounts, agents]);
 
   // Reconcile transient pulse edges incrementally (add new, remove gone) so the
   // demo's rapid add/clear of flows never triggers a full-dataset diff.
@@ -251,7 +277,7 @@ export function FlowGraph() {
           drawn.current.delete(id);
         }
       }
-      g.draw().catch(() => {});
+      // No draw() here — the rAF loop renders the added/removed pulse edges next frame.
     } catch {}
   }, [flows, agents]);
 
