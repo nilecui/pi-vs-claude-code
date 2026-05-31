@@ -10,6 +10,7 @@ export function TerminalStrip() {
 
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const [zoom, setZoom] = useState<string | null>(null);
+  const [modalMax, setModalMax] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [minimized, setMinimized] = useState<Set<string>>(new Set());
@@ -75,10 +76,17 @@ export function TerminalStrip() {
       </div>
 
       {zoomAgent && (
-        <div className="term-modal-backdrop" onClick={() => setZoom(null)}>
-          <button className="term-modal-close" onClick={() => setZoom(null)}>✕</button>
-          <div className="term-modal" onClick={(e) => e.stopPropagation()}>
-            <TerminalWindow agent={zoomAgent} lines={linesByAgent[zoomAgent.session_id] ?? []} big />
+        <div className="term-modal-backdrop" onClick={() => { setZoom(null); setModalMax(false); }}>
+          <button className="term-modal-close" onClick={() => { setZoom(null); setModalMax(false); }}>✕</button>
+          <div className={`term-modal${modalMax ? " max" : ""}`} onClick={(e) => e.stopPropagation()}>
+            <TerminalWindow
+              agent={zoomAgent}
+              lines={linesByAgent[zoomAgent.session_id] ?? []}
+              big
+              onClose={() => { setZoom(null); setModalMax(false); }}
+              onMinimize={() => { setMinimized((m) => new Set(m).add(zoomAgent.session_id)); setZoom(null); setModalMax(false); }}
+              onMaximize={() => setModalMax((v) => !v)}
+            />
           </div>
         </div>
       )}

@@ -226,6 +226,7 @@ code {
 /* ── Terminal zoom modal ────────────────────────────── */
 .term-modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,.55); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .term-modal { width: 72vw; max-width: 920px; height: 70vh; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(2,6,23,.4); border-radius: 12px; overflow: hidden; }
+.term-modal.max { width: 95vw; max-width: none; height: 92vh; }
 .term-modal .macterm { width: 100%; height: 100%; cursor: default; }
 .term-modal-close { position: absolute; top: 14px; right: 18px; z-index: 51; width: 30px; height: 30px; border: 0; border-radius: 8px; background: #161b22; color: #c9d1d9; cursor: pointer; }
 /* ── Scenario menu ──────────────────────────────────── */
