@@ -22,6 +22,7 @@ interface State {
   lines: StreamLine[]; // global activity log
   linesByAgent: Record<string, StreamLine[]>;
   flows: FlowPulse[]; // transient edge pulses for the graph
+  edgeCounts: Record<string, number>; // cumulative message count per connection (sorted-pair key)
   selected?: string;
   selectNonce: number;
   demoAgents: Record<string, AgentCard>;
@@ -48,6 +49,10 @@ function responseText(response: unknown, error: string | null | undefined): stri
 function sessionByName(agents: Record<string, AgentCard>, name: string): string | undefined {
   return Object.values(agents).find((a) => a.name === name)?.session_id;
 }
+
+// Symmetric key for a connection between two endpoints, so prompt and response
+// over the same pair accumulate into one count. Exported for the graph's labels.
+export const edgeKey = (a: string, b: string) => [a, b].sort().join("::");
 
 // The hub sends sender/responder as { session_id, name }, but tolerate a bare
 // string (name or session_id) for forward/backward compat.
@@ -76,7 +81,10 @@ export const useStore = create<State>((set, get) => {
 
   function pulse(from: string, to: string, kind: FlowPulse["kind"]) {
     const id = nextId();
-    set((s) => ({ flows: [...s.flows, { id, from, to, kind, ts: Date.now() }] }));
+    set((s) => ({
+      flows: [...s.flows, { id, from, to, kind, ts: Date.now() }],
+      edgeCounts: { ...s.edgeCounts, [edgeKey(from, to)]: (s.edgeCounts[edgeKey(from, to)] ?? 0) + 1 },
+    }));
     setTimeout(() => get().clearFlow(id), 2400);
   }
 
@@ -183,6 +191,7 @@ export const useStore = create<State>((set, get) => {
     lines: [],
     linesByAgent: {},
     flows: [],
+    edgeCounts: {},
     selectNonce: 0,
     client: null,
 
