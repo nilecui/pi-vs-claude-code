@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Sidebar } from "./components/Sidebar";
-import { GraphView } from "./components/GraphView";
+import { FlowGraph } from "./components/FlowGraph";
 import { TerminalCard } from "./components/TerminalCard";
 import { useStore } from "./store";
 
@@ -26,7 +26,7 @@ export default function App() {
       <Sidebar />
       <main className="main">
         <section className="graph-pane">
-          <GraphView />
+          <FlowGraph />
         </section>
         <section className="streams-pane">
           <TerminalCard title="activity feed" subtitle="all hub events" lines={lines} />
