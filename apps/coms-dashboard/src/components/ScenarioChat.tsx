@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { api, type ScenarioSummary } from "../api/client";
 import type { ScenarioDef } from "../lib/orchestration/types";
 import { ScenarioEditor } from "./ScenarioEditor";
+import { RunHistory } from "./RunHistory";
 
 function StreamingMarkdown({ text, onTick }: { text: string; onTick?: () => void }) {
   const [shown, setShown] = useState("");
@@ -30,6 +31,7 @@ export function ScenarioChat() {
   const esRef = useRef<EventSource | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [editorInitial, setEditorInitial] = useState<ScenarioDef | null | undefined>(undefined); // undefined=关闭
+  const [showHistory, setShowHistory] = useState(false);
   const current = scenarios.find((x) => x.id === sid);
 
   async function openEdit() {
@@ -62,11 +64,11 @@ export function ScenarioChat() {
     });
   }
 
-  async function run() {
-    if (!sid || busy || !draft.trim()) return;
+  async function runWith(text: string) {
+    if (!sid || busy || !text.trim()) return;
     setBusy(true); setSteps([]); setResult(null); setStatusMsg("提交运行…");
     try {
-      const runId = await api.createRun(sid, draft.trim());
+      const runId = await api.createRun(sid, text.trim());
       const es = api.runEvents(runId); esRef.current = es;
       es.addEventListener("step", (e) => applyStep(JSON.parse((e as MessageEvent).data)));
       es.addEventListener("status", (e) => setStatusMsg(JSON.parse((e as MessageEvent).data).msg ?? ""));
@@ -75,6 +77,8 @@ export function ScenarioChat() {
       es.addEventListener("error", () => { es.close(); esRef.current = null; setBusy(false); setStatusMsg("运行出错"); });
     } catch (e) { setStatusMsg("创建运行失败:" + String(e)); setBusy(false); }
   }
+  function run() { runWith(draft); }
+  function rerun(input: string) { setShowHistory(false); setDraft(input); runWith(input); }
   async function stop() {
     if (!detail) return;
     setStatusMsg("停止本场景 agent…");
@@ -95,6 +99,7 @@ export function ScenarioChat() {
           {scenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
         <button className="result-open" onClick={() => setEditorInitial(null)}>+ 新建</button>
+        <button className="result-open" disabled={!sid} onClick={() => setShowHistory(true)}>历史</button>
         {current && <button className="result-open" onClick={openEdit}>{current.builtin ? "复制并编辑" : "编辑"}</button>}
         {result && <button className="result-open" onClick={() => setShowResult(true)}>📄 查看完整产出</button>}
         <button className="hier-stop" onClick={stop}>停止</button>
@@ -134,6 +139,9 @@ export function ScenarioChat() {
       )}
       {editorInitial !== undefined && (
         <ScenarioEditor initial={editorInitial} onClose={() => setEditorInitial(undefined)} onSaved={onEditorSaved} />
+      )}
+      {showHistory && sid && (
+        <RunHistory scenarioId={sid} onRerun={rerun} onClose={() => setShowHistory(false)} />
       )}
     </aside>
   );
