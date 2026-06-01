@@ -87,3 +87,27 @@ test("团队共享场景:成员可见、非成员不可见", () => {
   expect(isScenarioOwner(db, "shared", b)).toBe(false);
   expect(getScenarioTeamId(db, "shared")).toBe(t);
 });
+
+test("run 团队可见:成员看队友对共享场景的 run,非成员不可见", () => {
+  const db = freshDb();
+  const a = createUser(db, "alice", "h"); const b = createUser(db, "bob", "h"); const c = createUser(db, "carol", "h");
+  const t = createTeam(db, "dev", a); addMember(db, t, a, "bob");
+  upsertScenario(db, { ...demo, id: "shared" }, false, a, t); // 团队共享
+  const rid = createRun(db, "shared", "i", a);                 // a 跑
+  const bRuns = listRuns(db, b, "shared");
+  expect(bRuns.length).toBe(1);
+  expect(bRuns[0].owner_name).toBe("alice");
+  expect(getRun(db, rid, b)?.id).toBe(rid);
+  expect(listRuns(db, c, "shared").length).toBe(0);
+  expect(getRun(db, rid, c)).toBeNull();
+});
+
+test("私有场景 run 仍仅 owner 可见(回归)", () => {
+  const db = freshDb();
+  const a = createUser(db, "alice", "h"); const b = createUser(db, "bob", "h");
+  upsertScenario(db, { ...demo, id: "priv" }, false, a, null); // 私有
+  const rid = createRun(db, "priv", "i", a);
+  expect(listRuns(db, b, "priv").length).toBe(0);
+  expect(getRun(db, rid, b)).toBeNull();
+  expect(getRun(db, rid, a)?.id).toBe(rid);
+});

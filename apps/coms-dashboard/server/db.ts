@@ -121,19 +121,33 @@ export function upsertRunStep(db: Database, runId: string, stepId: string, role:
   }
 }
 
+// 该 run 的场景是否对 userId 经团队可见(场景 team_id ∈ 用户所属团队)
+function isRunScenarioVisible(db: Database, scenarioId: string, userId: string): boolean {
+  return !!db.query(
+    `SELECT 1 FROM scenarios s JOIN team_members m ON m.team_id = s.team_id WHERE s.id = ? AND m.user_id = ?`,
+  ).get(scenarioId, userId);
+}
+
 export function getRun(db: Database, runId: string, userId: string): RunRow | null {
-  const run = db.query("SELECT * FROM runs WHERE id = ?").get(runId) as (Omit<RunRow, "steps"> & { owner_id: string | null }) | null;
+  const run = db.query(
+    `SELECT r.*, u.username AS owner_name FROM runs r LEFT JOIN users u ON u.id = r.owner_id WHERE r.id = ?`,
+  ).get(runId) as (Omit<RunRow, "steps"> & { owner_id: string | null; owner_name: string | null }) | null;
   if (!run) return null;
-  if (run.owner_id !== null && run.owner_id !== userId) return null;
+  const visible = run.owner_id === userId || isRunScenarioVisible(db, run.scenario_id, userId);
+  if (!visible) return null;
   const steps = db.query("SELECT step_id, role, status, output FROM run_steps WHERE run_id = ? ORDER BY id").all(runId) as RunStepRow[];
   return { ...run, steps };
 }
 
-export function listRuns(db: Database, userId: string, scenarioId?: string): Omit<RunRow, "steps">[] {
+export function listRuns(db: Database, userId: string, scenarioId?: string): (Omit<RunRow, "steps"> & { owner_name: string | null })[] {
+  const visTeam = `r.scenario_id IN (SELECT s.id FROM scenarios s JOIN team_members m ON m.team_id = s.team_id WHERE m.user_id = ?)`;
+  const sel = `SELECT r.*, u.username AS owner_name FROM runs r LEFT JOIN users u ON u.id = r.owner_id`;
   if (scenarioId) {
-    return db.query("SELECT * FROM runs WHERE owner_id = ? AND scenario_id = ? ORDER BY created_at DESC").all(userId, scenarioId) as Omit<RunRow, "steps">[];
+    return db.query(`${sel} WHERE r.scenario_id = ? AND (r.owner_id = ? OR ${visTeam}) ORDER BY r.created_at DESC`)
+      .all(scenarioId, userId, userId) as (Omit<RunRow, "steps"> & { owner_name: string | null })[];
   }
-  return db.query("SELECT * FROM runs WHERE owner_id = ? ORDER BY created_at DESC").all(userId) as Omit<RunRow, "steps">[];
+  return db.query(`${sel} WHERE r.owner_id = ? OR ${visTeam} ORDER BY r.created_at DESC`)
+    .all(userId, userId) as (Omit<RunRow, "steps"> & { owner_name: string | null })[];
 }
 
 export function abortStaleRuns(db: Database): void {

@@ -1,7 +1,7 @@
 import type { ScenarioDef } from "../lib/orchestration/types";
 
 export interface ScenarioSummary { id: string; title: string; blurb: string; builtin: number; }
-export interface RunSummary { id: string; scenario_id: string; input: string; status: string; result_md: string | null; created_at: number; finished_at: number | null; }
+export interface RunSummary { id: string; scenario_id: string; input: string; status: string; result_md: string | null; created_at: number; finished_at: number | null; owner_name: string | null; }
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "include", ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });

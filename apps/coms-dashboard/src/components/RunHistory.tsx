@@ -50,6 +50,7 @@ export function RunHistory({ scenarioId, onRerun, onClose }: {
               <div key={r.id} className={`history-item ${sel?.id === r.id ? "on" : ""}`} onClick={() => open(r.id)}>
                 <div className="history-item-top">
                   <span className={`history-badge st-${r.status}`}>{STATUS_LABEL[r.status] ?? r.status}</span>
+                  {r.owner_name && <span className="history-owner">由 {r.owner_name}</span>}
                   <span className="history-time">{fmtTime(r.created_at)}</span>
                 </div>
                 <div className="history-input">{r.input}</div>

@@ -87,6 +87,24 @@ test("团队共享:成员可见且只读,非成员不可见", async () => {
   expect((await call(handler, "GET", "/api/scenarios/shareX", c)).status).toBe(404);
 });
 
+test("run 团队可见:同队成员看得到队友对共享场景的 run", async () => {
+  const { handler } = harness();
+  const a = await register(handler, "ra", "p");
+  const b = await register(handler, "rb", "p");
+  const c = await register(handler, "rc", "p");
+  const { id: teamId } = await (await call(handler, "POST", "/api/teams", a, { name: "dev" })).json();
+  await call(handler, "POST", `/api/teams/${teamId}/members`, a, { username: "rb" });
+  const scn = { id: "rshare", title: "X", blurb: "b", roles: [{ name: "r", provider: "x", model: "x", purpose: "", color: "#000" }], input: { label: "l", default: "d" }, steps: [{ id: "s1", role: "r", prompt: "{{input}}", after: [] }], assembly: "R:{{steps.s1}}", teamId };
+  await call(handler, "POST", "/api/scenarios", a, scn);
+  const { runId } = await (await call(handler, "POST", "/api/runs", a, { scenarioId: "rshare", input: "X" })).json();
+  const bRuns = await (await call(handler, "GET", "/api/runs?scenarioId=rshare", b)).json();
+  expect(bRuns.runs.length).toBe(1);
+  expect(bRuns.runs[0].owner_name).toBe("ra");
+  expect((await call(handler, "GET", `/api/runs/${runId}`, b)).status).toBe(200);
+  expect((await (await call(handler, "GET", "/api/runs?scenarioId=rshare", c)).json()).runs.length).toBe(0);
+  expect((await call(handler, "GET", `/api/runs/${runId}`, c)).status).toBe(404);
+});
+
 test("用户隔离:A 的 run,B 看不到", async () => {
   const { handler } = harness();
   const a = await register(handler, "alice", "pw");
