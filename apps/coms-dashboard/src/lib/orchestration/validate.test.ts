@@ -54,3 +54,20 @@ test("环依赖报错", () => {
   ] }));
   expect(e.some((x) => x.includes("环"))).toBe(true);
 });
+
+test("prompt 引用非(传递)依赖的 step 报错", () => {
+  const e = validate(scn({ steps: [
+    { id: "s1", role: "a", prompt: "{{steps.s2}}", after: [] },
+    { id: "s2", role: "a", prompt: "", after: [] },
+  ] }));
+  expect(e.some((x) => x.includes("传递") || (x.includes("prompt") && x.includes("s2")))).toBe(true);
+});
+
+test("prompt 引用传递依赖的 step → 合法", () => {
+  const e = validate(scn({ steps: [
+    { id: "s1", role: "a", prompt: "", after: [] },
+    { id: "s2", role: "a", prompt: "", after: ["s1"] },
+    { id: "s3", role: "a", prompt: "{{steps.s1}}", after: ["s2"] },
+  ] }));
+  expect(e).toEqual([]);
+});

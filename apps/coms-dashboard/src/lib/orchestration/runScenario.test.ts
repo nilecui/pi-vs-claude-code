@@ -24,10 +24,9 @@ function bidScn(): ScenarioDef {
   };
 }
 
-function deps(over: Partial<RunDeps> & { calls?: string[] }): RunDeps {
-  const calls = over.calls ?? [];
+function deps(over: Partial<RunDeps>): RunDeps {
   return {
-    ask: async (role, _prompt) => { calls.push(role); return `out-${role}`; },
+    ask: async (role, _prompt) => `out-${role}`,
     spawnMissing: async () => true,
     onStepUpdate: () => {},
     onStatus: () => {},
@@ -104,4 +103,34 @@ test("assemble 缺省 = 汇点步骤产出拼接", () => {
   delete s.assembly;
   // lead 是唯一汇点(没有别的 step 在 after 里引用它)
   expect(assemble(s, { tech: "a", comm: "b", comp: "c", lead: "d" })).toBe("d");
+});
+
+test("某步抛错 → 标记 error,下游仍运行", async () => {
+  const statuses: Record<string, StepStatus> = {};
+  let compRan = false;
+  await runScenario(bidScn(), "X", deps({
+    ask: async (role) => {
+      if (role === "tw") throw new Error("boom");
+      if (role === "cp") compRan = true;
+      return `out-${role}`;
+    },
+    onStepUpdate: (id, st) => { statuses[id] = st; },
+  }));
+  expect(statuses["tech"]).toBe("error");
+  expect(compRan).toBe(true);
+  expect(statuses["comp"]).toBe("done");
+});
+
+test("assemble 多汇点(无 assembly)→ 以 \\n\\n---\\n\\n 连接", () => {
+  const s: ScenarioDef = {
+    id: "multi", title: "t", blurb: "b",
+    roles: [{ ...role, name: "x" }, { ...role, name: "y" }],
+    input: { label: "l", default: "d" },
+    steps: [
+      { id: "s1", role: "x", prompt: "{{input}}", after: [] },
+      { id: "s2", role: "y", prompt: "{{input}}", after: [] },
+    ],
+    // 无 assembly,s1/s2 均为汇点
+  };
+  expect(assemble(s, { s1: "A", s2: "B" })).toBe("A\n\n---\n\nB");
 });

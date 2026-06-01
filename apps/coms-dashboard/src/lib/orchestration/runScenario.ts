@@ -61,8 +61,9 @@ export async function runScenario(s: ScenarioDef, input: string, deps: RunDeps):
     );
   }
 
-  deps.onResult(assemble(s, outputs));
-  deps.onStatus("完成 ✓");
+  const allDone = s.steps.every((st) => terminal(st.id));
+  if (allDone) { deps.onResult(assemble(s, outputs)); deps.onStatus("完成 ✓"); }
+  else { deps.onStatus("编排异常中止(存在未完成步骤)"); }
 }
 
 export function assemble(s: ScenarioDef, outputs: Record<string, string>): string {
