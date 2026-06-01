@@ -283,7 +283,9 @@ code {
 .graph-legend i.ln { width: 16px; height: 3px; border-radius: 2px; }
 
 .hier-runner { display: flex; flex-direction: column; gap: 6px; }
-.hier-runner textarea { resize: none; height: 56px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--text); font-family: inherit; }
+.hier-runner textarea { resize: none; height: 96px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--text); font-family: inherit; }
+.hier-runner select { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--text); font-family: inherit; }
+.hier-runner select:focus { outline: none; border-color: var(--primary); }
 .hier-runner textarea:focus { outline: none; border-color: var(--primary); }
 .hier-actions { display: flex; gap: 8px; }
 .hier-actions .send-btn { flex: 1; }
