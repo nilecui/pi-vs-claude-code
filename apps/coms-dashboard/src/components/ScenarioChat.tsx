@@ -4,6 +4,30 @@ import remarkGfm from "remark-gfm";
 import { useStore } from "../store";
 import { REAL_SCENARIOS, type RealAgent } from "../lib/realScenarios";
 
+// Typewriter-style reveal of a (markdown) message. coms-net delivers the full
+// response in one frame, so we simulate streaming by revealing it progressively.
+function StreamingMarkdown({ text, onTick }: { text: string; onTick?: () => void }) {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    let i = 0;
+    const total = text.length;
+    const step = Math.max(2, Math.ceil(total / 90));
+    const t = setInterval(() => {
+      i = Math.min(total, i + step);
+      setShown(text.slice(0, i));
+      onTick?.();
+      if (i >= total) clearInterval(t);
+    }, 28);
+    return () => clearInterval(t);
+  }, [text]);
+  return (
+    <div className="chat-md">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{shown || ""}</ReactMarkdown>
+      {shown.length < text.length && <span className="chat-caret" />}
+    </div>
+  );
+}
+
 export function ScenarioChat() {
   const agents = useStore((s) => s.agents);
   const lines = useStore((s) => s.lines);
@@ -22,7 +46,8 @@ export function ScenarioChat() {
     () => lines.filter((l) => (l.from === "dashboard" && l.to === sc.leadName) || (l.from === sc.leadName && l.to === "dashboard")),
     [lines, sc.leadName],
   );
-  useEffect(() => { const el = bodyRef.current; if (el) el.scrollTop = el.scrollHeight; }, [thread.length]);
+  const scrollToBottom = () => { const el = bodyRef.current; if (el) el.scrollTop = el.scrollHeight; };
+  useEffect(() => { scrollToBottom(); }, [thread.length]);
 
   function pick(id: string) {
     setSid(id);
@@ -90,7 +115,7 @@ export function ScenarioChat() {
           <div key={l.id} className={`chat-msg ${l.from === "dashboard" ? "user" : "assistant"}`}>
             <div className="chat-role">{l.from === "dashboard" ? "你" : l.from}</div>
             {l.from === sc.leadName
-              ? <div className="chat-md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{l.text}</ReactMarkdown></div>
+              ? <StreamingMarkdown text={l.text} onTick={scrollToBottom} />
               : <div className="chat-text">{l.text}</div>}
           </div>
         ))}
