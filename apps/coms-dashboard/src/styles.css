@@ -272,3 +272,9 @@ code {
 .bc-chip.bc-all { color: var(--muted); }
 .broadcast textarea { resize: none; height: 52px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--text); font-family: inherit; }
 .broadcast textarea:focus { outline: none; border-color: var(--primary); }
+
+/* Graph legend (bottom-left): 4-state status dots + active-connection line. */
+.graph-legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; padding: 6px 10px; backdrop-filter: blur(4px); box-shadow: var(--shadow-card); font-size: 11px; color: var(--muted); }
+.graph-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.graph-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.graph-legend i.ln { width: 16px; height: 3px; border-radius: 2px; }

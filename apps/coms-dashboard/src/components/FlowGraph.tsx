@@ -17,6 +17,18 @@ const STATUS_DOT: Record<string, string> = {
   offline: "#71717a",
 };
 
+// 4-state display dot: stopped (stale/offline) zinc, working (online + queued)
+// blue, idle (online + empty queue) green.
+const DOT_STOPPED = "#71717a";
+const DOT_WORKING = "#3b82f6";
+const DOT_IDLE = "#10b981";
+const dotColorFor = (status: string, queueDepth: number) =>
+  status === "stale" || status === "offline"
+    ? DOT_STOPPED
+    : queueDepth > 0
+      ? DOT_WORKING
+      : DOT_IDLE;
+
 const statusOpacity = (status?: string) =>
   status === "offline" ? 0.4 : status === "stale" ? 0.65 : 1;
 
@@ -65,7 +77,12 @@ function buildBaseData(agents: Agents, counts: EdgeCounts): GraphData {
   for (const a of list) {
     nodes.push({
       id: a.session_id,
-      data: { name: a.name, color: a.color, status: a.status },
+      data: {
+        name: a.name,
+        color: a.color,
+        status: a.status,
+        dotColor: dotColorFor(a.status, a.queue_depth),
+      },
     });
   }
 
@@ -102,6 +119,7 @@ export function FlowGraph() {
   const flows = useStore((s) => s.flows);
   const edgeCounts = useStore((s) => s.edgeCounts);
   const select = useStore((s) => s.select);
+  const replay = useStore((s) => s.replay);
   const [layout, setLayout] = useState<LayoutKey>("tree");
   // Open conversation dialog for a clicked base edge: [nameA, nameB].
   const [convo, setConvo] = useState<[string, string] | null>(null);
@@ -147,13 +165,14 @@ export function FlowGraph() {
           iconSrc: BOT_ICON,
           iconWidth: 26,
           iconHeight: 26,
-          // Small status dot at bottom-right (color reflects online/stale/offline).
+          // Small status dot at bottom-right. Agents use the 4-state dotColor
+          // (idle/working/stopped); the dashboard node falls back to its status.
           badge: true,
           badges: ((d: any) => [
             {
               text: "",
               placement: "right-bottom",
-              backgroundFill: STATUS_DOT[d.data?.status ?? "online"] ?? "#10b981",
+              backgroundFill: d.data?.dotColor ?? STATUS_DOT[d.data?.status ?? "online"] ?? "#10b981",
               backgroundRadius: 6,
               backgroundWidth: 12,
               backgroundHeight: 12,
@@ -179,9 +198,11 @@ export function FlowGraph() {
         type: "cubic",
         style: {
           stroke: (d: any) => d.data?.color ?? "#c7d2fe",
-          lineWidth: (d: any) => (d.data?.pulse ? 3 : 2),
+          lineWidth: (d: any) => (d.data?.pulse ? 2 : 1),
           opacity: (d: any) => (d.data?.pulse ? 1 : 0.9),
-          endArrow: (d: any) => !!d.data?.pulse,
+          // Directed: small arrowhead on every edge (base + pulse).
+          endArrow: true,
+          endArrowSize: 6,
           // Flowing dashed segments: short comet on pulses, longer "ants" on base.
           lineDash: (d: any) => (d.data?.pulse ? [4, 14] : [6, 6]),
           lineDashOffset: 0,
@@ -383,9 +404,16 @@ export function FlowGraph() {
     <div className="graph-wrap">
       <div className="graph-canvas" ref={containerRef} />
       <div className="graph-controls">
+        <button title="回放消息流" onClick={() => replay()}>⟲</button>
         <button title="放大" onClick={() => zoomBy(1.2)}>＋</button>
         <button title="缩小" onClick={() => zoomBy(1 / 1.2)}>－</button>
         <button title="居中适配" onClick={fitView}>⤢</button>
+      </div>
+      <div className="graph-legend">
+        <span><i style={{ background: "#10b981" }} />空闲</span>
+        <span><i style={{ background: "#3b82f6" }} />工作中</span>
+        <span><i style={{ background: "#71717a" }} />已停止</span>
+        <span><i className="ln" style={{ background: "#c7d2fe" }} />活跃连接</span>
       </div>
       <div className="layout-switch">
         <span className="section-label">视角</span>

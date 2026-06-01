@@ -36,6 +36,7 @@ interface State {
   orchestrate: (fromName: string, toName: string, task: string) => Promise<void>;
   select: (sessionId?: string) => void;
   clearFlow: (id: string) => void;
+  replay: () => void;
   runScenario: (id: string) => void;
   clearDemo: () => void;
 }
@@ -84,11 +85,14 @@ export const useStore = create<State>((set, get) => {
     });
   }
 
-  function pulse(from: string, to: string, kind: FlowPulse["kind"]) {
+  function pulse(from: string, to: string, kind: FlowPulse["kind"], bumpCount = true) {
     const id = nextId();
     set((s) => ({
       flows: [...s.flows, { id, from, to, kind, ts: Date.now() }],
-      edgeCounts: { ...s.edgeCounts, [edgeKey(from, to)]: (s.edgeCounts[edgeKey(from, to)] ?? 0) + 1 },
+      // Replay re-animates recorded flow without inflating the cumulative counts.
+      edgeCounts: bumpCount
+        ? { ...s.edgeCounts, [edgeKey(from, to)]: (s.edgeCounts[edgeKey(from, to)] ?? 0) + 1 }
+        : s.edgeCounts,
     }));
     setTimeout(() => get().clearFlow(id), 2400);
   }
@@ -267,6 +271,25 @@ export const useStore = create<State>((set, get) => {
 
     clearFlow(id) {
       set((s) => ({ flows: s.flows.filter((f) => f.id !== id) }));
+    },
+
+    replay() {
+      const evs = get().lines.filter(
+        (l) => l.kind === "prompt" || l.kind === "response" || l.kind === "error",
+      );
+      const ag = get().agents;
+      const resolve = (n?: string) =>
+        !n || n === "dashboard" ? DASHBOARD_ID : sessionByName(ag, n) ?? n;
+      evs.forEach((l, i) => {
+        setTimeout(() => {
+          pulse(
+            resolve(l.from),
+            resolve(l.to),
+            l.kind === "response" ? "response" : l.kind === "error" ? "error" : "prompt",
+            false, // animate only — don't inflate cumulative counts
+          );
+        }, i * 320);
+      });
     },
 
     clearDemo() {
