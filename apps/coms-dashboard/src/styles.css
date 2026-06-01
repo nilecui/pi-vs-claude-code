@@ -415,3 +415,16 @@ code {
 .login-switch { border: 0; background: none; color: var(--primary-strong); font-size: 12px; cursor: pointer; }
 .brand-logout { margin-left: auto; border: 1px solid var(--hairline); background: var(--card); color: var(--muted); border-radius: 8px; padding: 4px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .brand-logout:hover { color: var(--text); border-color: var(--primary); }
+
+/* teams (sub-project D2) */
+.teams-modal { width: 720px; max-width: 94vw; height: 78vh; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--hairline); border-radius: 14px; box-shadow: var(--shadow-hover); overflow: hidden; }
+.teams-body { flex: 1; display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
+.teams-list { border-right: 1px solid var(--hairline); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.teams-detail { overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.teams-detail-head { display: flex; align-items: center; gap: 10px; }
+.teams-detail-head .editor-del { margin-left: auto; }
+.teams-member { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--hairline-soft); }
+.teams-member button { border: 1px solid var(--hairline); background: var(--card); border-radius: 7px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+.teams-create { display: flex; gap: 6px; margin-top: 8px; }
+.teams-create input { flex: 1; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--card); color: var(--text); }
+.teams-create button { border: 1px solid var(--hairline); background: var(--muted-surface); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }

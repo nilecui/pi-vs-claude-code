@@ -1,23 +1,26 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { validate } from "../lib/orchestration/validate";
 import type { ScenarioDef } from "../lib/orchestration/types";
-import { api } from "../api/client";
+import { api, teams as teamApi, type TeamSummary } from "../api/client";
 import * as draft from "../lib/scenarioDraft";
 
-export function ScenarioEditor({ initial, onClose, onSaved }: {
-  initial: ScenarioDef | null; onClose: () => void; onSaved: (id: string) => void;
+export function ScenarioEditor({ initial, initialTeamId, onClose, onSaved }: {
+  initial: ScenarioDef | null; initialTeamId: string | null; onClose: () => void; onSaved: (id: string) => void;
 }) {
   const isNew = initial === null;
   const [s, setS] = useState<ScenarioDef>(initial ? structuredClone(initial) : draft.blankScenario());
+  const [teamId, setTeamId] = useState<string | null>(initialTeamId);
+  const [myTeams, setMyTeams] = useState<TeamSummary[]>([]);
   const [saving, setSaving] = useState(false);
   const [serverErr, setServerErr] = useState<string[]>([]);
   const errors = useMemo(() => validate(s), [s]);
   const canSave = errors.length === 0 && (!isNew || s.id.trim() !== "") && !saving;
+  useEffect(() => { teamApi.list().then(setMyTeams).catch(() => {}); }, []);
 
   async function save() {
     setSaving(true); setServerErr([]);
     try {
-      if (isNew) await api.createScenario(s); else await api.updateScenario(s.id, s);
+      if (isNew) await api.createScenario(s, teamId); else await api.updateScenario(s.id, s, teamId);
       onSaved(s.id);
     } catch (e) {
       const m = String(e); const jm = m.match(/\{[\s\S]*\}/);
@@ -47,6 +50,12 @@ export function ScenarioEditor({ initial, onClose, onSaved }: {
         <div className="editor-body">
           <label className="editor-field"><span>ID</span><input value={s.id} disabled={!isNew} onChange={(e) => setS({ ...s, id: e.target.value })} /></label>
           <label className="editor-field"><span>标题</span><input value={s.title} onChange={(e) => setS({ ...s, title: e.target.value })} /></label>
+          <label className="editor-field"><span>可见性</span>
+            <select value={teamId ?? ""} onChange={(e) => setTeamId(e.target.value || null)}>
+              <option value="">私有(仅自己)</option>
+              {myTeams.map((t) => <option key={t.id} value={t.id}>团队:{t.name}</option>)}
+            </select>
+          </label>
           <label className="editor-field"><span>简介</span><input value={s.blurb} onChange={(e) => setS({ ...s, blurb: e.target.value })} /></label>
           <label className="editor-field"><span>输入提示</span><input value={s.input.label} onChange={(e) => setS({ ...s, input: { ...s.input, label: e.target.value } })} /></label>
           <label className="editor-field"><span>默认输入</span><textarea value={s.input.default} onChange={(e) => setS({ ...s, input: { ...s.input, default: e.target.value } })} /></label>

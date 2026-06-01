@@ -17,12 +17,25 @@ export const auth = {
   logout: () => j("/api/auth/logout", { method: "POST" }),
 };
 
+export interface TeamSummary { id: string; name: string; owner_id: string; role: string; }
+export interface TeamMember { user_id: string; username: string; role: string; }
+export interface TeamDetail { id: string; name: string; owner_id: string; members: TeamMember[]; }
+export const teams = {
+  list: () => j<{ teams: TeamSummary[] }>("/api/teams").then((r) => r.teams),
+  create: (name: string) => j<{ id: string }>("/api/teams", { method: "POST", body: JSON.stringify({ name }) }),
+  get: (id: string) => j<{ team: TeamDetail }>(`/api/teams/${encodeURIComponent(id)}`).then((r) => r.team),
+  addMember: (id: string, username: string) => j(`/api/teams/${encodeURIComponent(id)}/members`, { method: "POST", body: JSON.stringify({ username }) }),
+  removeMember: (id: string, userId: string) => j(`/api/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { method: "DELETE" }),
+  remove: (id: string) => j(`/api/teams/${encodeURIComponent(id)}`, { method: "DELETE" }),
+};
+
 export const api = {
   listScenarios: () => j<{ scenarios: ScenarioSummary[] }>("/api/scenarios").then((r) => r.scenarios),
-  getScenario: (id: string) => j<{ scenario: ScenarioDef }>(`/api/scenarios/${encodeURIComponent(id)}`).then((r) => r.scenario),
-  createScenario: (s: ScenarioDef) => j<{ ok: boolean; id: string }>("/api/scenarios", { method: "POST", body: JSON.stringify(s) }),
+  getScenario: (id: string) => j<{ scenario: ScenarioDef; teamId: string | null }>(`/api/scenarios/${encodeURIComponent(id)}`).then((r) => r.scenario),
+  getScenarioFull: (id: string) => j<{ scenario: ScenarioDef; teamId: string | null }>(`/api/scenarios/${encodeURIComponent(id)}`),
+  createScenario: (s: ScenarioDef, teamId: string | null = null) => j<{ ok: boolean; id: string }>("/api/scenarios", { method: "POST", body: JSON.stringify({ ...s, teamId }) }),
   duplicateScenario: (id: string) => j<{ ok: boolean; id: string }>(`/api/scenarios/${encodeURIComponent(id)}/duplicate`, { method: "POST" }),
-  updateScenario: (id: string, s: ScenarioDef) => j(`/api/scenarios/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(s) }),
+  updateScenario: (id: string, s: ScenarioDef, teamId: string | null = null) => j(`/api/scenarios/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ ...s, teamId }) }),
   deleteScenario: (id: string) => j(`/api/scenarios/${encodeURIComponent(id)}`, { method: "DELETE" }),
   createRun: (scenarioId: string, input: string) => j<{ runId: string }>("/api/runs", { method: "POST", body: JSON.stringify({ scenarioId, input }) }).then((r) => r.runId),
   listRuns: (scenarioId?: string) => j<{ runs: RunSummary[] }>(`/api/runs${scenarioId ? `?scenarioId=${encodeURIComponent(scenarioId)}` : ""}`).then((r) => r.runs),

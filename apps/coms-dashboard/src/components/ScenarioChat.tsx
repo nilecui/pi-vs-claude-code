@@ -5,6 +5,7 @@ import { api, type ScenarioSummary } from "../api/client";
 import type { ScenarioDef } from "../lib/orchestration/types";
 import { ScenarioEditor } from "./ScenarioEditor";
 import { RunHistory } from "./RunHistory";
+import { Teams } from "./Teams";
 
 function StreamingMarkdown({ text, onTick }: { text: string; onTick?: () => void }) {
   const [shown, setShown] = useState("");
@@ -30,24 +31,25 @@ export function ScenarioChat() {
   const [busy, setBusy] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [editorInitial, setEditorInitial] = useState<ScenarioDef | null | undefined>(undefined); // undefined=关闭
+  const [editorState, setEditorState] = useState<{ initial: ScenarioDef | null; teamId: string | null } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [showTeams, setShowTeams] = useState(false);
+  const [meId, setMeId] = useState("");
   const current = scenarios.find((x) => x.id === sid);
+
+  useEffect(() => { import("../api/client").then(({ auth }) => auth.me().then((u) => setMeId(u.id)).catch(() => {})); }, []);
 
   async function openEdit() {
     if (!current) return;
-    if (current.builtin) {
-      const { id } = await api.duplicateScenario(sid);
-      setEditorInitial(await api.getScenario(id));
-    } else {
-      setEditorInitial(await api.getScenario(sid));
-    }
+    const targetId = current.builtin ? (await api.duplicateScenario(sid)).id : sid;
+    const f = await api.getScenarioFull(targetId);
+    setEditorState({ initial: f.scenario, teamId: f.teamId });
   }
   async function onEditorSaved(id: string) {
     const list = await api.listScenarios();
     setScenarios(list);
     setSid(id || list[0]?.id || "");
-    setEditorInitial(undefined);
+    setEditorState(null);
   }
 
   useEffect(() => { api.listScenarios().then((s) => { setScenarios(s); if (s[0]) setSid(s[0].id); }).catch(() => setStatusMsg("无法连接后端 — 先 just server")); }, []);
@@ -98,8 +100,9 @@ export function ScenarioChat() {
         <select value={sid} onChange={(e) => setSid(e.target.value)}>
           {scenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
-        <button className="result-open" onClick={() => setEditorInitial(null)}>+ 新建</button>
+        <button className="result-open" onClick={() => setEditorState({ initial: null, teamId: null })}>+ 新建</button>
         <button className="result-open" disabled={!sid} onClick={() => setShowHistory(true)}>历史</button>
+        <button className="result-open" onClick={() => setShowTeams(true)}>团队</button>
         {current && <button className="result-open" onClick={openEdit}>{current.builtin ? "复制并编辑" : "编辑"}</button>}
         {result && <button className="result-open" onClick={() => setShowResult(true)}>📄 查看完整产出</button>}
         <button className="hier-stop" onClick={stop}>停止</button>
@@ -137,9 +140,10 @@ export function ScenarioChat() {
           </div>
         </div>
       )}
-      {editorInitial !== undefined && (
-        <ScenarioEditor initial={editorInitial} onClose={() => setEditorInitial(undefined)} onSaved={onEditorSaved} />
+      {editorState && (
+        <ScenarioEditor initial={editorState.initial} initialTeamId={editorState.teamId} onClose={() => setEditorState(null)} onSaved={onEditorSaved} />
       )}
+      {showTeams && <Teams currentUserId={meId} onClose={() => setShowTeams(false)} />}
       {showHistory && sid && (
         <RunHistory scenarioId={sid} onRerun={rerun} onClose={() => setShowHistory(false)} />
       )}
