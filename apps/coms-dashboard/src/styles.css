@@ -389,6 +389,12 @@ code {
 .history-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .history-time { font-size: 11px; color: var(--muted); margin-left: auto; }
 .history-owner { font-size: 10px; color: var(--muted); border: 1px solid var(--hairline-soft); border-radius: 999px; padding: 0 6px; }
+
+/* DAG preview (sub-project F2) */
+.dag-preview { width: 100%; height: 200px; flex: 0 0 200px; border: 1px solid var(--hairline-soft); border-radius: 10px; background: var(--muted-surface); overflow: hidden; }
+.dag-collapse { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text); border-top: 1px solid var(--hairline-soft); padding-top: 8px; margin-top: 6px; cursor: pointer; user-select: none; }
+.editor-step.flash { animation: step-flash 1.2s ease-out; }
+@keyframes step-flash { 0% { box-shadow: 0 0 0 2px var(--primary); } 100% { box-shadow: none; } }
 .history-input { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .history-badge { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--muted); }
 .history-badge.st-done { color: #047857; border-color: hsl(160 84% 39% / .4); background: hsl(160 84% 39% / .08); }

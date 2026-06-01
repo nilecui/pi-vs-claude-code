@@ -3,6 +3,7 @@ import { validate } from "../lib/orchestration/validate";
 import type { ScenarioDef } from "../lib/orchestration/types";
 import { api, teams as teamApi, type TeamSummary } from "../api/client";
 import * as draft from "../lib/scenarioDraft";
+import { ScenarioDagPreview } from "./ScenarioDagPreview";
 
 export function ScenarioEditor({ initial, initialTeamId, onClose, onSaved }: {
   initial: ScenarioDef | null; initialTeamId: string | null; onClose: () => void; onSaved: (id: string) => void;
@@ -16,6 +17,13 @@ export function ScenarioEditor({ initial, initialTeamId, onClose, onSaved }: {
   const errors = useMemo(() => validate(s), [s]);
   const canSave = errors.length === 0 && (!isNew || s.id.trim() !== "") && !saving;
   useEffect(() => { teamApi.list().then(setMyTeams).catch(() => {}); }, []);
+  const [showDag, setShowDag] = useState(true);
+  function pickStep(id: string) {
+    const el = document.querySelector(`[data-step-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
 
   async function save() {
     setSaving(true); setServerErr([]);
@@ -72,9 +80,11 @@ export function ScenarioEditor({ initial, initialTeamId, onClose, onSaved }: {
             </div>
           ))}
 
+          <div className="dag-collapse" onClick={() => setShowDag((v) => !v)}>{showDag ? "▾" : "▸"} 依赖图预览</div>
+          {showDag && <ScenarioDagPreview scenario={s} onPickStep={pickStep} />}
           <div className="editor-section"><span>步骤(DAG)</span><button onClick={() => setS(draft.addStep(s))}>+ 步骤</button></div>
           {s.steps.map((st, i) => (
-            <div key={i} className="editor-step">
+            <div key={i} className="editor-step" data-step-id={st.id}>
               <div className="editor-step-row">
                 <input className="editor-stepid" placeholder="step id" value={st.id} onChange={(e) => setS(draft.renameStepId(s, i, e.target.value))} />
                 <select value={st.role} onChange={(e) => setS(draft.updateStep(s, i, { role: e.target.value }))}>
