@@ -137,6 +137,18 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
       }
       if (req.method === "GET" && p === "/api/agents") return json({ ok: true, sessions: listSessions() });
 
+      // ---- spawner 向后兼容(经 Vite /spawner 代理 → 这里;AddAgentForm 等仍用 /spawn|/list|/kill)----
+      if (req.method === "POST" && p === "/spawn") {
+        const b = (await req.json()) as { name: string; provider?: string; model?: string; purpose?: string; color?: string };
+        return json({ ...spawnAgent(b), name: b.name });
+      }
+      if (req.method === "GET" && p === "/list") return json({ ok: true, sessions: listSessions() });
+      if (req.method === "POST" && p === "/kill") {
+        const b = (await req.json()) as { session: string };
+        return json(killSession(b.session));
+      }
+      if (req.method === "GET" && p === "/health") return json({ ok: true, port: PORT });
+
       return json({ error: "not found" }, 404);
     } catch (e) {
       return json({ error: String(e) }, 500);

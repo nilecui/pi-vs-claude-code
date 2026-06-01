@@ -12,12 +12,14 @@
 # 1) 消息中枢 hub —— 必须开 firehose,否则看不到 agent↔agent 的 peer 消息
 PI_COMS_NET_OBSERVER_FIREHOSE=1 just coms-net-server
 
-# 2) 一键启动服务 spawner —— 面板「新增智能体 / 场景运行」靠它在 PTY 里拉起真实 agent
-just spawner
+# 2) 后端服务 server —— API + SQLite 持久化 + 服务端编排 + 拉起真实 agent(取代旧 spawner)
+just server
 
 # 3) 控制面板(本应用)
 cd apps/coms-dashboard && bun run dev      # http://localhost:5273
 ```
+
+> **编排现在跑在后端**:点「运行编排」由 server 创建一次 run、在服务端按场景的步骤 DAG 真实调用各 agent,过程经 SSE 流式推给浏览器,运行记录与装配产出落 SQLite(`apps/coms-dashboard/server/data/coms.db`)。**刷新/重开浏览器不丢**;关掉浏览器运行也会在后端继续。
 
 模型凭证:
 - **Codex 订阅(推荐,免 API key)**:先在终端 `pi` 里 `/login` 选 *ChatGPT Plus/Pro (Codex)*,即可用 `--provider openai-codex --model gpt-5.5`。
