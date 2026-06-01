@@ -25,12 +25,13 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const shutdown = useStore((s) => s.shutdown);
   const status = useStore((s) => s.status);
   const [drawer, setDrawer] = useState<"terminal" | "graph" | null>(null);
+  const [railOpen, setRailOpen] = useState(true);
   useEffect(() => { init(); return () => shutdown(); }, [init, shutdown]);
 
   return (
     <div className="app">
-      <div className="app-body two-col">
-        <aside className="rail-left">
+      <div className={`app-body ${railOpen ? "two-col" : "one-col"}`}>
+        {railOpen && <aside className="rail-left">
           <div className="brand">
             <div className="brand-logo">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -42,13 +43,16 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
               <div className="brand-status"><span className={`status-led led-${status}`} /><span className="brand-sub">{CONN_STATUS_LABEL[status] ?? status}</span></div>
             </div>
             <button className="brand-logout" onClick={onLogout} title={`登出 ${user.username}`}>{user.username} · 登出</button>
+            <button className="rail-collapse" title="收起侧栏" onClick={() => setRailOpen(false)}>‹</button>
           </div>
           <AddAgentForm />
           <Broadcast />
           <AgentList />
-        </aside>
+        </aside>}
         <ScenarioChat />
       </div>
+
+      {!railOpen && <button className="rail-expand" title="展开侧栏" onClick={() => setRailOpen(true)} aria-label="展开侧栏">☰</button>}
 
       <div className="drawer-toolbar">
         <button className={drawer === "terminal" ? "on" : ""} title="终端" onClick={() => setDrawer((d) => (d === "terminal" ? null : "terminal"))} aria-label="打开终端">
@@ -61,7 +65,7 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
       {drawer === "terminal" && (
         <Drawer title="终端" onClose={() => setDrawer(null)}>
-          <div className="drawer-scroll"><TerminalStrip /></div>
+          <div className="drawer-fill"><TerminalStrip /></div>
         </Drawer>
       )}
       {drawer === "graph" && (
