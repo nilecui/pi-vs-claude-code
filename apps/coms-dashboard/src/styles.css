@@ -209,8 +209,8 @@ code {
 .term-strip-right { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; }
 .term-restore { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
 .term-strip-action { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
-.term-strip { display: flex; flex-flow: column wrap; align-content: flex-start; gap: 10px; padding: 10px 12px; overflow-x: auto; overflow-y: hidden; background: var(--muted-surface); border-bottom: 0; }
-.macterm { flex: 0 0 auto; width: 280px; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
+.term-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; gap: 10px; padding: 10px 12px; overflow-x: hidden; overflow-y: auto; background: var(--muted-surface); border-bottom: 0; }
+.macterm { width: 100%; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
 .term-strip-resize { height: 8px; cursor: ns-resize; display: flex; align-items: center; justify-content: center; background: var(--muted-surface); border-bottom: 1px solid var(--border); }
 .term-strip-resize::before { content: ""; width: 40px; height: 3px; border-radius: 2px; background: hsl(220 9% 46% / .35); }
 .term-strip-resize:hover::before { background: var(--primary); }
