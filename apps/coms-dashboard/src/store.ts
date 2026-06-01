@@ -28,7 +28,7 @@ interface State {
 
   init: () => void;
   shutdown: () => void;
-  send: (target: string, prompt: string) => Promise<void>;
+  send: (target: string, prompt: string) => Promise<string | null>;
   broadcast: (targetNames: string[], prompt: string) => Promise<void>;
   orchestrate: (fromName: string, toName: string, task: string) => Promise<void>;
   select: (sessionId?: string) => void;
@@ -221,7 +221,7 @@ export const useStore = create<State>((set, get) => {
 
     async send(target, prompt) {
       const client = get().client;
-      if (!client) return;
+      if (!client) return null;
       const targetSession = sessionByName(get().agents, target) ?? target;
       pulse(DASHBOARD_ID, targetSession, "prompt");
       pushLine(
@@ -229,9 +229,11 @@ export const useStore = create<State>((set, get) => {
         targetSession in get().agents ? targetSession : undefined,
       );
       try {
-        await client.send(target, prompt);
+        const res = await client.send(target, prompt);
+        return res?.msg_id ?? null;
       } catch (err) {
         pushLine({ id: nextId(), ts: Date.now(), kind: "error", from: "hub", text: `send failed: ${err}` });
+        return null;
       }
     },
 
