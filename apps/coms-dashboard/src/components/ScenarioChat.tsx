@@ -1,11 +1,12 @@
+// src/components/ScenarioChat.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useStore } from "../store";
-import { REAL_SCENARIOS, type RealAgent } from "../lib/realScenarios";
+import { SCENARIOS } from "../lib/orchestration/scenarios";
+import { runScenario, TIMEOUT_TEXT } from "../lib/orchestration/runScenario";
+import type { RoleDef } from "../lib/orchestration/types";
 
-// Typewriter-style reveal of a (markdown) message. coms-net delivers the full
-// response in one frame, so we simulate streaming by revealing it progressively.
 function StreamingMarkdown({ text, onTick }: { text: string; onTick?: () => void }) {
   const [shown, setShown] = useState("");
   useEffect(() => {
@@ -32,9 +33,9 @@ export function ScenarioChat() {
   const agents = useStore((s) => s.agents);
   const lines = useStore((s) => s.lines);
   const send = useStore((s) => s.send);
-  const [sid, setSid] = useState(REAL_SCENARIOS[0].id);
-  const sc = useMemo(() => REAL_SCENARIOS.find((x) => x.id === sid)!, [sid]);
-  const [draft, setDraft] = useState(REAL_SCENARIOS[0].defaultInput);
+  const [sid, setSid] = useState(SCENARIOS[0].id);
+  const sc = useMemo(() => SCENARIOS.find((x) => x.id === sid)!, [sid]);
+  const [draft, setDraft] = useState(SCENARIOS[0].input.default);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -42,13 +43,10 @@ export function ScenarioChat() {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const agentNames = useMemo(() => new Set(Object.values(agents).map((a) => a.name)), [agents]);
-  const allOnline = sc.agents.every((a) => agentNames.has(a.name));
+  const allOnline = sc.roles.every((r) => agentNames.has(r.name));
 
-  // Only the panel's dispatches + each role's reply to the panel. Excludes any
-  // stray peer (agent→agent) messages the firehose mirrors, so the thread stays
-  // a clean dispatch→answer→dispatch→answer log.
   const thread = useMemo(() => {
-    const roleSet = new Set(sc.agents.map((a) => a.name));
+    const roleSet = new Set(sc.roles.map((r) => r.name));
     return lines.filter(
       (l) =>
         (l.from === "dashboard" && !!l.to && roleSet.has(l.to)) ||
@@ -62,13 +60,18 @@ export function ScenarioChat() {
 
   function pick(id: string) {
     setSid(id);
-    const s = REAL_SCENARIOS.find((x) => x.id === id)!;
-    setDraft(s.defaultInput);
+    const s = SCENARIOS.find((x) => x.id === id)!;
+    setDraft(s.input.default);
     setStatus("");
     setResult(null);
   }
-  function spawnOne(a: RealAgent) {
-    return fetch("/spawner/spawn", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: a.name, provider: "openai-codex", model: "gpt-5.5", color: a.color, purpose: a.purpose }) });
+
+  function spawnOne(r: RoleDef) {
+    return fetch("/spawner/spawn", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: r.name, provider: r.provider, model: r.model, color: r.color, purpose: r.purpose }),
+    });
   }
   function waitFor(names: string[], timeoutMs = 50000) {
     return new Promise<boolean>((resolve) => {
@@ -80,16 +83,20 @@ export function ScenarioChat() {
       }, 1000);
     });
   }
-  // Send one message to `target` and resolve with THAT message's reply, matched
-  // by msg_id. Correlating on msg_id (not "the next response from this agent")
-  // makes orchestration robust to multiple open dashboards, replays, and stale
-  // history — only the reply to this exact prompt resolves the await.
-  async function ask(target: string, prompt: string, timeoutMs = 240000): Promise<string> {
-    // Responders must NOT re-delegate: the panel drives every hop, so each agent
-    // has everything it needs to answer directly. Without this, agents with the
-    // coms tool eagerly forward to each other and deadlock (mutual await).
-    const full = `${prompt}\n\n【只回答,不要转发】请直接把结果回复给控制面板。禁止使用 coms / coms_net 等工具联系、转发或等待其它 agent —— 你已拥有完成本步骤所需的全部信息。`;
-    const msgId = await send(target, full);
+  async function spawnMissing(roles: RoleDef[]): Promise<boolean> {
+    const online = new Set(Object.values(useStore.getState().agents).map((a) => a.name));
+    const missing = roles.filter((r) => !online.has(r.name));
+    if (missing.length === 0) return true;
+    setStatus(`启动 ${missing.map((r) => r.name).join(" / ")}…`);
+    try { await Promise.all(missing.map(spawnOne)); }
+    catch { setStatus("spawner 未运行 — 先在终端跑 just spawner"); return false; }
+    setStatus("等待 agent 注册…(约 10–25s)");
+    return waitFor(missing.map((r) => r.name));
+  }
+
+  // 按 msg_id 关联:发出后只认这条 msg_id 的回复(对多面板/历史鲁棒)。超时 resolve TIMEOUT_TEXT。
+  async function ask(role: string, prompt: string, timeoutMs: number): Promise<string> {
+    const msgId = await send(role, prompt);
     if (!msgId) return "(发送失败:hub 未接受消息)";
     return new Promise((resolve) => {
       const t0 = Date.now();
@@ -98,7 +105,7 @@ export function ScenarioChat() {
           (l) => l.msg_id === msgId && (l.kind === "response" || l.kind === "error"),
         );
         if (hit) { clearInterval(iv); resolve(hit.text); }
-        else if (Date.now() - t0 > timeoutMs) { clearInterval(iv); resolve("(超时:未收到回复)"); }
+        else if (Date.now() - t0 > timeoutMs) { clearInterval(iv); resolve(TIMEOUT_TEXT); }
       }, 600);
     });
   }
@@ -109,24 +116,21 @@ export function ScenarioChat() {
     setBusy(true);
     setResult(null);
     try {
-      const missing = sc.agents.filter((a) => !agentNames.has(a.name));
-      if (missing.length) {
-        setStatus(`启动 ${missing.map((a) => a.name).join(" / ")}…`);
-        try { await Promise.all(missing.map(spawnOne)); }
-        catch { setStatus("spawner 未运行 — 先在终端跑 just spawner"); return; }
-        setStatus("等待 agent 注册…(约 10–25s)");
-        const ok = await waitFor(missing.map((a) => a.name));
-        if (!ok) { setStatus("部分 agent 未注册,请重试"); return; }
-      }
-      await sc.orchestrate({ input: text, ask, setStatus, setResult });
+      await runScenario(sc, text, {
+        ask,
+        spawnMissing,
+        onStepUpdate: () => {},
+        onStatus: setStatus,
+        onResult: setResult,
+      });
     } finally { setBusy(false); }
   }
   async function stop() {
     setStatus("停止本场景 agent…");
     try {
-      const list = await (await fetch("/spawner/list")).json();
-      const re = new RegExp("^pi-(" + sc.agents.map((a) => a.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")-");
-      const targets: string[] = (list.sessions || []).filter((s: string) => re.test(s));
+      const listResp = await (await fetch("/spawner/list")).json();
+      const re = new RegExp("^pi-(" + sc.roles.map((r) => r.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")-");
+      const targets: string[] = (listResp.sessions || []).filter((s: string) => re.test(s));
       await Promise.all(targets.map((s) => fetch("/spawner/kill", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session: s }) })));
       setStatus(`已停止 ${targets.length} 个 agent`);
     } catch { setStatus("spawner 未运行"); }
@@ -136,22 +140,21 @@ export function ScenarioChat() {
     <aside className="rail-chat">
       <div className="chat-head">
         <select value={sid} onChange={(e) => pick(e.target.value)}>
-          {REAL_SCENARIOS.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          {SCENARIOS.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
         {result && <button className="result-open" onClick={() => setShowResult(true)}>📄 查看完整产出</button>}
         <button className="hier-stop" onClick={stop}>停止</button>
       </div>
-      <div className="chat-roles">{sc.blurb} · {allOnline ? "角色在线 ✓" : `角色:${sc.agents.map((a) => a.name).join(" / ")}`}</div>
+      <div className="chat-roles">{sc.blurb} · {allOnline ? "角色在线 ✓" : `角色:${sc.roles.map((r) => r.name).join(" / ")}`}</div>
       <div className="chat-body" ref={bodyRef}>
-        {thread.length === 0 && <div className="chat-empty">选择场景,在下方填入任务并运行 → 面板按步骤把任务分派给每个角色,中间产出与 {sc.leadName} 的最终整合都会在这里逐条流式显示(Markdown 渲染)。</div>}
+        {thread.length === 0 && <div className="chat-empty">选择场景,在下方填入任务并运行 → 面板按步骤把任务分派给每个角色,中间产出与最终整合都会在这里逐条流式显示(Markdown 渲染)。</div>}
         {thread.map((l) => {
           if (l.from === "dashboard") {
             return <div key={l.id} className="chat-dispatch">↳ 分派给 <b>{l.to}</b></div>;
           }
-          const isLead = l.from === sc.leadName;
           return (
-            <div key={l.id} className={`chat-msg assistant ${isLead ? "lead" : "peer"}`}>
-              <div className="chat-role">{l.from}{isLead ? " · 最终整合" : ""}</div>
+            <div key={l.id} className="chat-msg assistant peer">
+              <div className="chat-role">{l.from}</div>
               <StreamingMarkdown text={l.text} onTick={scrollToBottom} />
             </div>
           );
@@ -167,7 +170,7 @@ export function ScenarioChat() {
       <div className="chat-composer">
         <textarea
           value={draft}
-          placeholder={sc.inputLabel}
+          placeholder={sc.input.label}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSend(); }}
         />
