@@ -8,6 +8,7 @@ import { startRun } from "./runner";
 import { HubClient } from "./hubClient";
 import { discoverHub } from "./hubConfig";
 import { spawnAgent, killSession, listSessions, spawnMissing } from "./agents";
+import { hashPassword, verifyPassword, createUser, getUserByName, createSession, getSessionUser, deleteSession } from "./auth";
 
 const PORT = Number(process.env.COMS_SERVER_PORT) || 5274;
 
@@ -23,6 +24,18 @@ export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: cors() });
 }
 
+function parseCookie(req: Request, name: string): string | null {
+  const raw = req.headers.get("cookie") ?? "";
+  for (const part of raw.split(";")) { const [k, ...v] = part.trim().split("="); if (k === name) return decodeURIComponent(v.join("=")); }
+  return null;
+}
+function sessionCookie(token: string, maxAgeSec = 7 * 24 * 3600): string {
+  return `coms_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAgeSec}`;
+}
+function jsonCookie(data: unknown, cookie: string, status = 200): Response {
+  return new Response(JSON.stringify(data), { status, headers: { ...cors(), "Set-Cookie": cookie } });
+}
+
 export interface ServerDeps {
   db: Database;
   hub: { ask: (role: string, prompt: string, timeoutMs: number) => Promise<string> };
@@ -33,7 +46,7 @@ export interface ServerDeps {
 export function buildServer(deps: ServerDeps): (req: Request) => Promise<Response> {
   const runHub = new RunHub();
 
-  function sseForRun(runId: string): Response {
+  function sseForRun(runId: string, userId: string): Response {
     const headers = { ...cors(), "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" };
     let unsub = () => {};
     const stream = new ReadableStream({
@@ -42,7 +55,7 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
         const send = (e: { type: string; [k: string]: unknown }) =>
           controller.enqueue(enc.encode(`event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`));
         // 快照:先发已有 steps + 当前状态(迟到的订阅者也能看全)
-        const run = dbm.getRun(deps.db, runId);
+        const run = dbm.getRun(deps.db, runId, userId);
         if (run) {
           for (const s of run.steps) send({ type: "step", stepId: s.step_id, role: s.role, status: s.status, output: s.output });
           if (run.result_md) send({ type: "result", md: run.result_md });
@@ -60,42 +73,71 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
     const p = url.pathname;
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
     try {
-      if (req.method === "GET" && p === "/api/health") return json({ ok: true, port: PORT });
+      // ---- auth(免鉴权)----
+      if (req.method === "POST" && p === "/api/auth/register") {
+        const { username, password } = (await req.json()) as { username: string; password: string };
+        if (!username?.trim() || !password) return json({ error: "用户名/密码不能为空" }, 400);
+        if (getUserByName(deps.db, username)) return json({ error: "用户名已被占用" }, 409);
+        const newUid = createUser(deps.db, username, await hashPassword(password));
+        const token = createSession(deps.db, newUid);
+        return jsonCookie({ user: { id: newUid, username } }, sessionCookie(token));
+      }
+      if (req.method === "POST" && p === "/api/auth/login") {
+        const { username, password } = (await req.json()) as { username: string; password: string };
+        const u = getUserByName(deps.db, username ?? "");
+        if (!u || !(await verifyPassword(password ?? "", u.password_hash))) return json({ error: "用户名或密码错误" }, 401);
+        const token = createSession(deps.db, u.id);
+        return jsonCookie({ user: { id: u.id, username: u.username } }, sessionCookie(token));
+      }
+      if (req.method === "POST" && p === "/api/auth/logout") {
+        const tok = parseCookie(req, "coms_session");
+        if (tok) deleteSession(deps.db, tok);
+        return jsonCookie({ ok: true }, "coms_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+      }
+      if (req.method === "GET" && (p === "/api/health" || p === "/health")) return json({ ok: true, port: PORT });
+
+      // ---- 会话中间件:其余路由需有效 session ----
+      const user = getSessionUser(deps.db, parseCookie(req, "coms_session"));
+      if (p === "/api/auth/me") return user ? json({ user }) : json({ error: "unauthorized" }, 401);
+      if (!user) return json({ error: "unauthorized" }, 401);
+      const uid = user.id;
 
       // ---- scenarios ----
-      if (req.method === "GET" && p === "/api/scenarios") return json({ scenarios: dbm.listScenarios(deps.db) });
+      if (req.method === "GET" && p === "/api/scenarios") return json({ scenarios: dbm.listScenarios(deps.db, uid) });
       if (req.method === "POST" && p === "/api/scenarios") {
         const body = (await req.json()) as ScenarioDef;
         const errs = validate(body);
         if (errs.length) return json({ error: "invalid", details: errs }, 400);
-        dbm.upsertScenario(deps.db, body, false);
+        dbm.upsertScenario(deps.db, body, false, uid);
         return json({ ok: true, id: body.id });
       }
       const dupMatch = p.match(/^\/api\/scenarios\/([^/]+)\/duplicate$/);
       if (req.method === "POST" && dupMatch) {
         const id = decodeURIComponent(dupMatch[1]);
-        const src = dbm.getScenario(deps.db, id);
+        const src = dbm.getScenario(deps.db, id, uid);
         if (!src) return json({ error: "not found" }, 404);
         const copy: ScenarioDef = { ...src, id: `${src.id}-copy-${Date.now().toString(36)}`, title: `${src.title}(副本)` };
-        dbm.upsertScenario(deps.db, copy, false);
+        dbm.upsertScenario(deps.db, copy, false, uid);
         return json({ ok: true, id: copy.id });
       }
       if (p.startsWith("/api/scenarios/")) {
         const id = decodeURIComponent(p.slice("/api/scenarios/".length));
         if (req.method === "GET") {
-          const s = dbm.getScenario(deps.db, id);
+          const s = dbm.getScenario(deps.db, id, uid);
           return s ? json({ scenario: s }) : json({ error: "not found" }, 404);
         }
         if (req.method === "PUT") {
           if (dbm.isBuiltin(deps.db, id)) return json({ error: "内置场景不可改,请先 duplicate" }, 409);
+          if (!dbm.getScenario(deps.db, id, uid)) return json({ error: "not found" }, 404);
           const body = (await req.json()) as ScenarioDef;
           const errs = validate(body);
           if (errs.length) return json({ error: "invalid", details: errs }, 400);
-          dbm.upsertScenario(deps.db, body, false);
+          dbm.upsertScenario(deps.db, body, false, uid);
           return json({ ok: true });
         }
         if (req.method === "DELETE") {
           if (dbm.isBuiltin(deps.db, id)) return json({ error: "内置场景不可删,请先 duplicate" }, 409);
+          if (!dbm.getScenario(deps.db, id, uid)) return json({ error: "not found" }, 404);
           dbm.deleteScenario(deps.db, id);
           return json({ ok: true });
         }
@@ -104,25 +146,25 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
       // ---- runs ----
       if (req.method === "POST" && p === "/api/runs") {
         const { scenarioId, input } = (await req.json()) as { scenarioId: string; input: string };
-        const scenario = dbm.getScenario(deps.db, scenarioId);
+        const scenario = dbm.getScenario(deps.db, scenarioId, uid);
         if (!scenario) return json({ error: "scenario not found" }, 404);
         if (deps.awaitRuns) {
-          const runId = await startRun({ db: deps.db, hub: deps.hub, agents: deps.agents, runHub, scenario, input });
+          const runId = await startRun({ db: deps.db, hub: deps.hub, agents: deps.agents, runHub, scenario, input, ownerId: uid });
           return json({ runId });
         }
-        const runId = dbm.createRun(deps.db, scenarioId, input);
-        void startRun({ db: deps.db, hub: deps.hub, agents: deps.agents, runHub, scenario, input, runId });
+        const runId = dbm.createRun(deps.db, scenarioId, input, uid);
+        void startRun({ db: deps.db, hub: deps.hub, agents: deps.agents, runHub, scenario, input, runId, ownerId: uid });
         return json({ runId });
       }
       if (req.method === "GET" && p === "/api/runs") {
         const sid = url.searchParams.get("scenarioId") ?? undefined;
-        return json({ runs: dbm.listRuns(deps.db, sid) });
+        return json({ runs: dbm.listRuns(deps.db, uid, sid) });
       }
       const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
-      if (req.method === "GET" && eventsMatch) return sseForRun(decodeURIComponent(eventsMatch[1]));
+      if (req.method === "GET" && eventsMatch) return sseForRun(decodeURIComponent(eventsMatch[1]), uid);
       if (req.method === "GET" && p.startsWith("/api/runs/")) {
         const runId = decodeURIComponent(p.slice("/api/runs/".length));
-        const run = dbm.getRun(deps.db, runId);
+        const run = dbm.getRun(deps.db, runId, uid);
         return run ? json({ run }) : json({ error: "not found" }, 404);
       }
 
@@ -176,6 +218,7 @@ if (import.meta.main) {
   const handler = buildServer({ db, hub, agents, awaitRuns: false });
   // idleTimeout 拉满(255s,Bun 上限):run SSE 在 agent 思考期间会长时间无数据,
   // 否则默认 10s 会被关闭;前端 EventSource 断线会重连并由 sseForRun 重放快照兜底。
-  Bun.serve({ port: PORT, hostname: "127.0.0.1", idleTimeout: 255, fetch: handler });
-  console.log("[coms-server] listening on http://127.0.0.1:" + PORT + " (hub " + baseUrl + ")");
+  const HOST = process.env.COMS_SERVER_HOST ?? "127.0.0.1";
+  Bun.serve({ port: PORT, hostname: HOST, idleTimeout: 255, fetch: handler });
+  console.log(`[coms-server] listening on http://${HOST}:${PORT} (hub ${baseUrl})`);
 }

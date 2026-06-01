@@ -401,3 +401,17 @@ code {
 .history-step summary { cursor: pointer; color: var(--muted); }
 .history-output { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.5; color: var(--text); margin: 6px 0 0; }
 .history-result { border-top: 1px solid var(--hairline-soft); padding-top: 10px; }
+
+/* auth (sub-project D1) */
+.login-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+.login-card { width: 320px; display: flex; flex-direction: column; gap: 10px; padding: 28px 24px; border: 1px solid var(--hairline); border-radius: 16px; box-shadow: var(--shadow-hover); background: var(--card); }
+.login-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.login-sub { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.login-card input { font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--hairline); border-radius: 9px; background: var(--bg); color: var(--text); }
+.login-card input:focus { outline: none; border-color: var(--primary); }
+.login-err { font-size: 12px; color: #b91c1c; }
+.login-go { font: inherit; font-size: 14px; padding: 9px; border: 0; border-radius: 9px; background: var(--primary); color: #fff; cursor: pointer; }
+.login-go:disabled { opacity: .5; cursor: not-allowed; }
+.login-switch { border: 0; background: none; color: var(--primary-strong); font-size: 12px; cursor: pointer; }
+.brand-logout { margin-left: auto; border: 1px solid var(--hairline); background: var(--card); color: var(--muted); border-radius: 8px; padding: 4px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.brand-logout:hover { color: var(--text); border-color: var(--primary); }

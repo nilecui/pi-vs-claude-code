@@ -4,10 +4,18 @@ export interface ScenarioSummary { id: string; title: string; blurb: string; bui
 export interface RunSummary { id: string; scenario_id: string; input: string; status: string; result_md: string | null; created_at: number; finished_at: number | null; }
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  const res = await fetch(path, { credentials: "include", ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
   if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${path} -> ${res.status} ${await res.text().catch(() => "")}`);
   return res.json() as Promise<T>;
 }
+
+export interface AuthUser { id: string; username: string; }
+export const auth = {
+  me: () => j<{ user: AuthUser }>("/api/auth/me").then((r) => r.user),
+  login: (username: string, password: string) => j<{ user: AuthUser }>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }).then((r) => r.user),
+  register: (username: string, password: string) => j<{ user: AuthUser }>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }).then((r) => r.user),
+  logout: () => j("/api/auth/logout", { method: "POST" }),
+};
 
 export const api = {
   listScenarios: () => j<{ scenarios: ScenarioSummary[] }>("/api/scenarios").then((r) => r.scenarios),

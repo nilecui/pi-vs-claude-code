@@ -11,6 +11,7 @@ export interface RunnerArgs {
   runHub: RunHub;
   scenario: ScenarioDef;
   input: string;
+  ownerId: string;
   runId?: string; // Task 6 adjustment: optional pre-created runId
   onEvent?: (e: RunEvent) => void; // 测试用旁路;生产用 runHub
   onSubscribeReplay?: boolean; // accepted but unused (future use)
@@ -18,7 +19,7 @@ export interface RunnerArgs {
 
 export async function startRun(args: RunnerArgs): Promise<string> {
   const { db, hub, agents, runHub, scenario, input } = args;
-  const runId = args.runId ?? createRun(db, scenario.id, input);
+  const runId = args.runId ?? createRun(db, scenario.id, input, args.ownerId);
   const emit = (e: RunEvent) => { runHub.broadcast(runId, e); args.onEvent?.(e); };
   try {
     await runScenario(scenario, input, {
