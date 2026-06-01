@@ -27,7 +27,7 @@ function bidScn(): ScenarioDef {
 function deps(over: Partial<RunDeps> & { calls?: string[] }): RunDeps {
   const calls = over.calls ?? [];
   return {
-    ask: async (role, prompt) => { calls.push(role); return `out-${role}`; },
+    ask: async (role, _prompt) => { calls.push(role); return `out-${role}`; },
     spawnMissing: async () => true,
     onStepUpdate: () => {},
     onStatus: () => {},
