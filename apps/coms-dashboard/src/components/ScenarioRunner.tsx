@@ -10,6 +10,16 @@ export function ScenarioRunner() {
   const [input, setInput] = useState(REAL_SCENARIOS[0].defaultInput);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const lines = useStore((s) => s.lines);
+  const [showResult, setShowResult] = useState(false);
+  // The deliverable = whatever the lead agent reports back to the dashboard.
+  const results = useMemo(
+    () => lines.filter((l) => l.kind === "response" && l.from === sc.leadName && l.to === "dashboard"),
+    [lines, sc.leadName],
+  );
+  async function copyAll() {
+    try { await navigator.clipboard.writeText(results.map((r) => r.text).join("\n\n———\n\n")); } catch { /* ignore */ }
+  }
 
   function pick(id: string) {
     setSid(id);
@@ -74,6 +84,26 @@ export function ScenarioRunner() {
       </div>
       {msg && <div className="add-agent-hint">{msg}</div>}
       {upCount > 0 && <div className="add-agent-hint">在线角色:{upCount}/{sc.agents.length}</div>}
+      {results.length > 0 && (
+        <button className="result-open" onClick={() => setShowResult(true)}>📄 查看产出 ({results.length})</button>
+      )}
+      {showResult && (
+        <div className="result-backdrop" onClick={() => setShowResult(false)}>
+          <div className="result-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="result-head">
+              <b>{sc.title} · 产出</b>
+              <span className="result-sub">来自 {sc.leadName} · {results.length} 条</span>
+              <button className="result-copy" onClick={copyAll}>复制全部</button>
+              <button className="result-close" onClick={() => setShowResult(false)}>✕</button>
+            </div>
+            <div className="result-body">
+              {results.map((r) => (
+                <div key={r.id} className="result-item">{r.text}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
