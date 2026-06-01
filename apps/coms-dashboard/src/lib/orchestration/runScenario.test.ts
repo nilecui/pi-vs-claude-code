@@ -1,7 +1,36 @@
 // src/lib/orchestration/runScenario.test.ts
 import { expect, test } from "bun:test";
-import { runScenario, assemble, TIMEOUT_TEXT, DELEGATION_SUFFIX } from "./runScenario";
+import { runScenario, assemble, mapLimit, TIMEOUT_TEXT, DELEGATION_SUFFIX } from "./runScenario";
 import type { ScenarioDef, RunDeps, StepStatus } from "./types";
+
+test("mapLimit:峰值并发 ≤ limit,全部执行", async () => {
+  let inFlight = 0, peak = 0;
+  const done: number[] = [];
+  await mapLimit([1, 2, 3, 4, 5], 2, async (n) => {
+    inFlight++; peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--; done.push(n);
+  });
+  expect(peak).toBeLessThanOrEqual(2);
+  expect(done.sort()).toEqual([1, 2, 3, 4, 5]);
+});
+
+test("runScenario:就绪批次受 maxConcurrency 限流", async () => {
+  // 5 个无依赖步骤(全部一批就绪),maxConcurrency=2 → ask 峰值并发 ≤ 2
+  const roles = Array.from({ length: 5 }, (_, i) => ({ name: `r${i}`, provider: "x", model: "x", purpose: "", color: "#000" }));
+  const scn: ScenarioDef = {
+    id: "wide", title: "t", blurb: "b", roles,
+    input: { label: "l", default: "d" }, maxConcurrency: 2,
+    steps: roles.map((r, i) => ({ id: `s${i}`, role: r.name, prompt: "x", after: [] })),
+  };
+  let inFlight = 0, peak = 0;
+  await runScenario(scn, "X", {
+    ask: async () => { inFlight++; peak = Math.max(peak, inFlight); await new Promise((r) => setTimeout(r, 5)); inFlight--; return "ok"; },
+    spawnMissing: async () => true,
+    onStepUpdate: () => {}, onStatus: () => {}, onResult: () => {},
+  });
+  expect(peak).toBeLessThanOrEqual(2);
+});
 
 const role = { name: "a", provider: "p", model: "m", purpose: "", color: "#000" };
 

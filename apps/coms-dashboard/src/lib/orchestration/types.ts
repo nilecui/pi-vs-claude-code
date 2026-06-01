@@ -24,6 +24,7 @@ export interface ScenarioDef {
   input: { label: string; default: string };
   steps: StepDef[];
   assembly?: string; // 模板;缺省 = 汇点步骤产出拼接
+  maxConcurrency?: number; // 就绪批次最大并发(缺省 6);宽扇出时排队跑,防洪峰
 }
 
 export type StepStatus = "pending" | "running" | "done" | "error" | "timeout";

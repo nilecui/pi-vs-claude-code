@@ -11,6 +11,17 @@ export const DELEGATION_SUFFIX =
   "\n\n【只回答,不要转发】请直接把结果回复给控制面板。禁止使用 coms / coms_net 等工具联系、转发或等待其它 agent —— 你已拥有完成本步骤所需的全部信息。";
 
 const DEFAULT_TIMEOUT = 240000;
+const DEFAULT_MAX_CONCURRENCY = 6;
+
+// 以最多 `limit` 个并发跑完所有 item(任意时刻在飞 ≤ limit)。用于给宽扇出的就绪批次限流,防洪峰。
+export async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  const n = Math.max(1, Math.min(limit, items.length));
+  let i = 0;
+  const worker = async () => {
+    while (i < items.length) { const idx = i++; await fn(items[idx]); }
+  };
+  await Promise.all(Array.from({ length: n }, worker));
+}
 
 export async function runScenario(s: ScenarioDef, input: string, deps: RunDeps): Promise<void> {
   const errs = validate(s);
@@ -24,6 +35,7 @@ export async function runScenario(s: ScenarioDef, input: string, deps: RunDeps):
     return;
   }
 
+  const limit = s.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY;
   const outputs: Record<string, string> = {};
   const status = new Map<string, StepStatus>(s.steps.map((st) => [st.id, "pending"]));
   for (const st of s.steps) deps.onStepUpdate(st.id, "pending");
@@ -42,23 +54,21 @@ export async function runScenario(s: ScenarioDef, input: string, deps: RunDeps):
     ready.forEach((st) => status.set(st.id, "running"));
     ready.forEach((st) => deps.onStepUpdate(st.id, "running"));
 
-    await Promise.all(
-      ready.map(async (st) => {
-        const prompt = render(st.prompt, { input, steps: outputs }) + DELEGATION_SUFFIX;
-        try {
-          const text = await deps.ask(st.role, prompt, st.timeoutMs ?? DEFAULT_TIMEOUT);
-          const fin: StepStatus = text === TIMEOUT_TEXT ? "timeout" : "done";
-          outputs[st.id] = text;
-          status.set(st.id, fin);
-          deps.onStepUpdate(st.id, fin, text);
-        } catch (e) {
-          const text = `(执行出错:${String(e)})`;
-          outputs[st.id] = text;
-          status.set(st.id, "error");
-          deps.onStepUpdate(st.id, "error", text);
-        }
-      }),
-    );
+    await mapLimit(ready, limit, async (st) => {
+      const prompt = render(st.prompt, { input, steps: outputs }) + DELEGATION_SUFFIX;
+      try {
+        const text = await deps.ask(st.role, prompt, st.timeoutMs ?? DEFAULT_TIMEOUT);
+        const fin: StepStatus = text === TIMEOUT_TEXT ? "timeout" : "done";
+        outputs[st.id] = text;
+        status.set(st.id, fin);
+        deps.onStepUpdate(st.id, fin, text);
+      } catch (e) {
+        const text = `(执行出错:${String(e)})`;
+        outputs[st.id] = text;
+        status.set(st.id, "error");
+        deps.onStepUpdate(st.id, "error", text);
+      }
+    });
   }
 
   const allDone = s.steps.every((st) => terminal(st.id));
