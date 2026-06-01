@@ -32,6 +32,15 @@ export function migrate(db: Database): void {
     const cols = db.query(`PRAGMA table_info(${t})`).all() as { name: string }[];
     if (!cols.some((c) => c.name === "owner_id")) db.run(`ALTER TABLE ${t} ADD COLUMN owner_id TEXT`);
   }
+  db.run(`CREATE TABLE IF NOT EXISTS teams (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_id TEXT NOT NULL, created_at INTEGER NOT NULL)`);
+  db.run(`CREATE TABLE IF NOT EXISTS team_members (
+    team_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL,
+    created_at INTEGER NOT NULL, PRIMARY KEY (team_id, user_id))`);
+  {
+    const cols = db.query(`PRAGMA table_info(scenarios)`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === "team_id")) db.run(`ALTER TABLE scenarios ADD COLUMN team_id TEXT`);
+  }
 }
 
 export function seedScenarios(db: Database, builtins: ScenarioDef[]): void {
@@ -42,16 +51,29 @@ export function seedScenarios(db: Database, builtins: ScenarioDef[]): void {
 
 export function listScenarios(db: Database, userId: string): ScenarioRow[] {
   return db.query(
-    "SELECT id, title, blurb, builtin FROM scenarios WHERE owner_id = ? OR owner_id IS NULL ORDER BY builtin DESC, title",
-  ).all(userId) as ScenarioRow[];
+    `SELECT id, title, blurb, builtin FROM scenarios
+     WHERE owner_id = ? OR owner_id IS NULL OR team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
+     ORDER BY builtin DESC, title`,
+  ).all(userId, userId) as ScenarioRow[];
 }
 
 export function getScenario(db: Database, id: string | undefined, userId: string): ScenarioDef | null {
   if (!id) return null;
-  const row = db.query("SELECT data, owner_id FROM scenarios WHERE id = ?").get(id) as { data: string; owner_id: string | null } | null;
+  const row = db.query("SELECT data, owner_id, team_id FROM scenarios WHERE id = ?").get(id) as { data: string; owner_id: string | null; team_id: string | null } | null;
   if (!row) return null;
-  if (row.owner_id !== null && row.owner_id !== userId) return null; // 越权当不存在
-  return JSON.parse(row.data) as ScenarioDef;
+  const visible = row.owner_id === null || row.owner_id === userId ||
+    (row.team_id !== null && !!db.query("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?").get(row.team_id, userId));
+  return visible ? (JSON.parse(row.data) as ScenarioDef) : null;
+}
+
+export function getScenarioTeamId(db: Database, id: string): string | null {
+  const row = db.query("SELECT team_id FROM scenarios WHERE id = ?").get(id) as { team_id: string | null } | null;
+  return row?.team_id ?? null;
+}
+
+export function isScenarioOwner(db: Database, id: string, userId: string): boolean {
+  const row = db.query("SELECT owner_id FROM scenarios WHERE id = ?").get(id) as { owner_id: string | null } | null;
+  return !!row && row.owner_id === userId;
 }
 
 export function isBuiltin(db: Database, id: string): boolean {
@@ -59,14 +81,14 @@ export function isBuiltin(db: Database, id: string): boolean {
   return !!row && row.builtin === 1;
 }
 
-export function upsertScenario(db: Database, s: ScenarioDef, builtin: boolean, ownerId: string | null): void {
+export function upsertScenario(db: Database, s: ScenarioDef, builtin: boolean, ownerId: string | null, teamId: string | null = null): void {
   const now = Date.now();
   db.run(
-    `INSERT INTO scenarios (id, title, blurb, data, builtin, owner_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO scenarios (id, title, blurb, data, builtin, owner_id, team_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET title=excluded.title, blurb=excluded.blurb,
-       data=excluded.data, owner_id=excluded.owner_id, updated_at=excluded.updated_at`,
-    [s.id, s.title, s.blurb, JSON.stringify(s), builtin ? 1 : 0, ownerId, now, now],
+       data=excluded.data, owner_id=excluded.owner_id, team_id=excluded.team_id, updated_at=excluded.updated_at`,
+    [s.id, s.title, s.blurb, JSON.stringify(s), builtin ? 1 : 0, ownerId, teamId, now, now],
   );
 }
 

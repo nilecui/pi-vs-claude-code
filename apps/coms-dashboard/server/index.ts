@@ -9,6 +9,7 @@ import { HubClient } from "./hubClient";
 import { discoverHub } from "./hubConfig";
 import { spawnAgent, killSession, listSessions, spawnMissing } from "./agents";
 import { hashPassword, verifyPassword, createUser, getUserByName, createSession, getSessionUser, deleteSession } from "./auth";
+import { createTeam, listTeams, getTeam, addMember, removeMember, deleteTeam } from "./teams";
 
 const PORT = Number(process.env.COMS_SERVER_PORT) || 5274;
 
@@ -101,14 +102,45 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
       if (p === "/api/auth/me") return user ? json({ user }) : json({ error: "unauthorized" }, 401);
       if (!user) return json({ error: "unauthorized" }, 401);
       const uid = user.id;
+      const requireMember = (teamId: string) => getTeam(deps.db, teamId, uid) !== null;
+
+      // ---- teams ----
+      if (req.method === "GET" && p === "/api/teams") return json({ teams: listTeams(deps.db, uid) });
+      if (req.method === "POST" && p === "/api/teams") {
+        const { name } = (await req.json()) as { name: string };
+        if (!name?.trim()) return json({ error: "团队名不能为空" }, 400);
+        return json({ id: createTeam(deps.db, name.trim(), uid) });
+      }
+      const teamMemMatch = p.match(/^\/api\/teams\/([^/]+)\/members(?:\/([^/]+))?$/);
+      if (teamMemMatch) {
+        const teamId = decodeURIComponent(teamMemMatch[1]);
+        if (req.method === "POST" && !teamMemMatch[2]) {
+          const { username } = (await req.json()) as { username: string };
+          const r = addMember(deps.db, teamId, uid, username ?? "");
+          if (r === "ok") return json({ ok: true });
+          return json({ error: r }, r === "not_owner" ? 403 : r === "no_user" || r === "no_team" ? 404 : 409);
+        }
+        if (req.method === "DELETE" && teamMemMatch[2]) {
+          const r = removeMember(deps.db, teamId, uid, decodeURIComponent(teamMemMatch[2]));
+          return r === "ok" ? json({ ok: true }) : json({ error: "forbidden" }, 403);
+        }
+      }
+      const teamIdMatch = p.match(/^\/api\/teams\/([^/]+)$/);
+      if (teamIdMatch) {
+        const teamId = decodeURIComponent(teamIdMatch[1]);
+        if (req.method === "GET") { const t = getTeam(deps.db, teamId, uid); return t ? json({ team: t }) : json({ error: "not found" }, 404); }
+        if (req.method === "DELETE") { const r = deleteTeam(deps.db, teamId, uid); return r === "ok" ? json({ ok: true }) : json({ error: "forbidden" }, 403); }
+      }
 
       // ---- scenarios ----
       if (req.method === "GET" && p === "/api/scenarios") return json({ scenarios: dbm.listScenarios(deps.db, uid) });
       if (req.method === "POST" && p === "/api/scenarios") {
-        const body = (await req.json()) as ScenarioDef;
+        const body = (await req.json()) as ScenarioDef & { teamId?: string | null };
         const errs = validate(body);
         if (errs.length) return json({ error: "invalid", details: errs }, 400);
-        dbm.upsertScenario(deps.db, body, false, uid);
+        const teamId = body.teamId ?? null;
+        if (teamId && !requireMember(teamId)) return json({ error: "无权共享到该团队" }, 400);
+        dbm.upsertScenario(deps.db, body, false, uid, teamId);
         return json({ ok: true, id: body.id });
       }
       const dupMatch = p.match(/^\/api\/scenarios\/([^/]+)\/duplicate$/);
@@ -124,20 +156,22 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
         const id = decodeURIComponent(p.slice("/api/scenarios/".length));
         if (req.method === "GET") {
           const s = dbm.getScenario(deps.db, id, uid);
-          return s ? json({ scenario: s }) : json({ error: "not found" }, 404);
+          return s ? json({ scenario: s, teamId: dbm.getScenarioTeamId(deps.db, id) }) : json({ error: "not found" }, 404);
         }
         if (req.method === "PUT") {
           if (dbm.isBuiltin(deps.db, id)) return json({ error: "内置场景不可改,请先 duplicate" }, 409);
-          if (!dbm.getScenario(deps.db, id, uid)) return json({ error: "not found" }, 404);
-          const body = (await req.json()) as ScenarioDef;
+          if (!dbm.isScenarioOwner(deps.db, id, uid)) return json({ error: "无权修改(非创建者)" }, 403);
+          const body = (await req.json()) as ScenarioDef & { teamId?: string | null };
           const errs = validate(body);
           if (errs.length) return json({ error: "invalid", details: errs }, 400);
-          dbm.upsertScenario(deps.db, body, false, uid);
+          const teamId = body.teamId ?? null;
+          if (teamId && !requireMember(teamId)) return json({ error: "无权共享到该团队" }, 400);
+          dbm.upsertScenario(deps.db, body, false, uid, teamId);
           return json({ ok: true });
         }
         if (req.method === "DELETE") {
           if (dbm.isBuiltin(deps.db, id)) return json({ error: "内置场景不可删,请先 duplicate" }, 409);
-          if (!dbm.getScenario(deps.db, id, uid)) return json({ error: "not found" }, 404);
+          if (!dbm.isScenarioOwner(deps.db, id, uid)) return json({ error: "无权删除(非创建者)" }, 403);
           dbm.deleteScenario(deps.db, id);
           return json({ ok: true });
         }

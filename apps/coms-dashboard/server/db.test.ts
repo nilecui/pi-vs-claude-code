@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { migrate, seedScenarios, listScenarios, getScenario, upsertScenario, deleteScenario,
-         createRun, updateRunStatus, upsertRunStep, getRun, listRuns } from "./db";
+         createRun, updateRunStatus, upsertRunStep, getRun, listRuns, isScenarioOwner, getScenarioTeamId } from "./db";
+import { createUser } from "./auth";
+import { createTeam, addMember } from "./teams";
 import type { ScenarioDef } from "../src/lib/orchestration/types";
 
 function freshDb() { const db = new Database(":memory:"); migrate(db); return db; }
@@ -70,4 +72,18 @@ test("listRuns 按 owner 过滤", () => {
   createRun(db, "x", "a", "u1"); createRun(db, "x", "b", "u2");
   expect(listRuns(db, "u1").length).toBe(1);
   expect(listRuns(db, "u2").length).toBe(1);
+});
+
+test("团队共享场景:成员可见、非成员不可见", () => {
+  const db = freshDb();
+  const a = createUser(db, "alice", "h"); const b = createUser(db, "bob", "h"); const c = createUser(db, "carol", "h");
+  const t = createTeam(db, "dev", a); addMember(db, t, a, "bob");
+  upsertScenario(db, { ...demo, id: "shared" }, false, a, t);
+  expect(listScenarios(db, b).map((s) => s.id)).toContain("shared"); // 成员可见
+  expect(getScenario(db, "shared", b)?.id).toBe("shared");
+  expect(listScenarios(db, c).map((s) => s.id)).not.toContain("shared"); // 非成员不可见
+  expect(getScenario(db, "shared", c)).toBeNull();
+  expect(isScenarioOwner(db, "shared", a)).toBe(true);
+  expect(isScenarioOwner(db, "shared", b)).toBe(false);
+  expect(getScenarioTeamId(db, "shared")).toBe(t);
 });

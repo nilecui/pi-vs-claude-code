@@ -70,6 +70,23 @@ test("PUT 内置场景被拒(409)", async () => {
   expect(res.status).toBe(409);
 });
 
+test("团队共享:成员可见且只读,非成员不可见", async () => {
+  const { handler } = harness();
+  const a = await register(handler, "ta", "p");
+  const b = await register(handler, "tb", "p");
+  const c = await register(handler, "tc", "p");
+  const { id: teamId } = await (await call(handler, "POST", "/api/teams", a, { name: "dev" })).json();
+  expect((await call(handler, "POST", `/api/teams/${teamId}/members`, a, { username: "tb" })).status).toBe(200);
+  const scnX = { id: "shareX", title: "X", blurb: "b", roles: [{ name: "r", provider: "x", model: "x", purpose: "", color: "#000" }], input: { label: "l", default: "d" }, steps: [{ id: "s1", role: "r", prompt: "{{input}}", after: [] }], teamId };
+  expect((await call(handler, "POST", "/api/scenarios", a, scnX)).status).toBe(200);
+  // b 成员可见,但 PUT 403
+  expect((await (await call(handler, "GET", "/api/scenarios", b)).json()).scenarios.map((s: { id: string }) => s.id)).toContain("shareX");
+  expect((await call(handler, "PUT", "/api/scenarios/shareX", b, { ...scnX, teamId: null })).status).toBe(403);
+  // c 非成员不可见
+  expect((await (await call(handler, "GET", "/api/scenarios", c)).json()).scenarios.map((s: { id: string }) => s.id)).not.toContain("shareX");
+  expect((await call(handler, "GET", "/api/scenarios/shareX", c)).status).toBe(404);
+});
+
 test("用户隔离:A 的 run,B 看不到", async () => {
   const { handler } = harness();
   const a = await register(handler, "alice", "pw");
