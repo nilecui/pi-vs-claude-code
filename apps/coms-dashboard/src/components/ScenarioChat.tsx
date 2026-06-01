@@ -42,10 +42,14 @@ export function ScenarioChat() {
   const agentNames = useMemo(() => new Set(Object.values(agents).map((a) => a.name)), [agents]);
   const allOnline = sc.agents.every((a) => agentNames.has(a.name));
 
+  // Show the WHOLE team conversation: dashboard + every role agent in this scenario
+  // (so the intermediate lead↔teammate orchestration is visible, not just the final).
+  const teamNames = useMemo(() => new Set<string>([...sc.agents.map((a) => a.name), "dashboard"]), [sc]);
   const thread = useMemo(
-    () => lines.filter((l) => (l.from === "dashboard" && l.to === sc.leadName) || (l.from === sc.leadName && l.to === "dashboard")),
-    [lines, sc.leadName],
+    () => lines.filter((l) => teamNames.has(l.from) && (!l.to || teamNames.has(l.to))),
+    [lines, teamNames],
   );
+  const awaiting = thread.length > 0 && thread[thread.length - 1].from === "dashboard";
   const scrollToBottom = () => { const el = bodyRef.current; if (el) el.scrollTop = el.scrollHeight; };
   useEffect(() => { scrollToBottom(); }, [thread.length]);
 
@@ -111,14 +115,23 @@ export function ScenarioChat() {
       <div className="chat-roles">{sc.blurb} · {allOnline ? "角色在线 ✓" : `角色:${sc.agents.map((a) => a.name).join(" / ")}`}</div>
       <div className="chat-body" ref={bodyRef}>
         {thread.length === 0 && <div className="chat-empty">选择场景,在下方输入任务并发送 → {sc.leadName} 将协调团队产出(Markdown 渲染)。</div>}
-        {thread.map((l) => (
-          <div key={l.id} className={`chat-msg ${l.from === "dashboard" ? "user" : "assistant"}`}>
-            <div className="chat-role">{l.from === "dashboard" ? "你" : l.from}</div>
-            {l.from === sc.leadName
-              ? <StreamingMarkdown text={l.text} onTick={scrollToBottom} />
-              : <div className="chat-text">{l.text}</div>}
+        {thread.map((l) => {
+          const isUser = l.from === "dashboard";
+          const cls = isUser ? "user" : l.from === sc.leadName ? "assistant" : "assistant peer";
+          const label = isUser ? "你" : l.to && l.to !== "dashboard" ? `${l.from} → ${l.to}` : l.from;
+          return (
+            <div key={l.id} className={`chat-msg ${cls}`}>
+              <div className="chat-role">{label}</div>
+              {isUser ? <div className="chat-text">{l.text}</div> : <StreamingMarkdown text={l.text} onTick={scrollToBottom} />}
+            </div>
+          );
+        })}
+        {awaiting && (
+          <div className="chat-msg assistant">
+            <div className="chat-role">{sc.leadName}</div>
+            <div className="chat-md chat-thinking"><span /><span /><span /></div>
           </div>
-        ))}
+        )}
         {status && <div className="chat-status">{status}</div>}
       </div>
       <div className="chat-composer">
