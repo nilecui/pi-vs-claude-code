@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { migrate, seedScenarios } from "./db";
 import { buildServer } from "./index";
+import { setOidcFetch, resetOidcFetch, __resetDiscovery, issueState } from "./oidc";
 import type { ScenarioDef } from "../src/lib/orchestration/types";
 
 const scn: ScenarioDef = {
@@ -118,4 +119,34 @@ test("用户隔离:A 的 run,B 看不到", async () => {
   // A 自己能看到
   const aRuns = await (await call(handler, "GET", "/api/runs", a)).json();
   expect(aRuns.runs.length).toBe(1);
+});
+
+const OIDC_ENV = { OIDC_ISSUER: "https://idp.test", OIDC_CLIENT_ID: "cid", OIDC_CLIENT_SECRET: "sec", OIDC_REDIRECT_URI: "http://app/api/auth/oidc/callback" };
+const DISC = { authorization_endpoint: "https://idp.test/auth", token_endpoint: "https://idp.test/token", userinfo_endpoint: "https://idp.test/me" };
+
+test("SSO config 两态 + 授权码回调建号并签发 cookie + 坏 state 400", async () => {
+  const { handler } = harness();
+  expect((await (await call(handler, "GET", "/api/auth/config")).json()).sso).toBe(false);
+  for (const k in OIDC_ENV) process.env[k] = (OIDC_ENV as Record<string, string>)[k];
+  __resetDiscovery();
+  setOidcFetch((async (u: unknown) => {
+    const s = String(u);
+    if (s.includes("/.well-known/openid-configuration")) return new Response(JSON.stringify(DISC), { status: 200 });
+    if (s === DISC.token_endpoint) return new Response(JSON.stringify({ access_token: "AT" }), { status: 200 });
+    if (s === DISC.userinfo_endpoint) return new Response(JSON.stringify({ sub: "S1", preferred_username: "ssouser" }), { status: 200 });
+    return new Response("no", { status: 404 });
+  }) as unknown as typeof fetch);
+  try {
+    expect((await (await call(handler, "GET", "/api/auth/config")).json()).sso).toBe(true);
+    expect((await call(handler, "GET", "/api/auth/oidc/callback?code=c&state=bad")).status).toBe(400);
+    const state = issueState();
+    const cb = await call(handler, "GET", `/api/auth/oidc/callback?code=ok&state=${state}`);
+    expect(cb.status).toBe(302);
+    const cookie = cb.headers.get("set-cookie")!.split(";")[0];
+    const me = await (await call(handler, "GET", "/api/auth/me", cookie)).json();
+    expect(me.user.username).toBe("ssouser");
+  } finally {
+    for (const k in OIDC_ENV) delete process.env[k];
+    resetOidcFetch(); __resetDiscovery();
+  }
 });

@@ -41,6 +41,11 @@ export function migrate(db: Database): void {
     const cols = db.query(`PRAGMA table_info(scenarios)`).all() as { name: string }[];
     if (!cols.some((c) => c.name === "team_id")) db.run(`ALTER TABLE scenarios ADD COLUMN team_id TEXT`);
   }
+  {
+    const cols = db.query(`PRAGMA table_info(users)`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === "oauth_sub")) db.run(`ALTER TABLE users ADD COLUMN oauth_sub TEXT`);
+  }
+  db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_sub ON users(oauth_sub) WHERE oauth_sub IS NOT NULL");
 }
 
 export function seedScenarios(db: Database, builtins: ScenarioDef[]): void {

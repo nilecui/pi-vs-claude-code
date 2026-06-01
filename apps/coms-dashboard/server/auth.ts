@@ -37,3 +37,15 @@ export function getSessionUser(db: Database, token: string | null | undefined): 
 export function deleteSession(db: Database, token: string): void {
   db.run("DELETE FROM sessions WHERE token = ?", [token]);
 }
+
+// SSO 身份映射:按 oauth_sub 找;无则建号(用户名冲突加后缀;无密码)。
+export function upsertOidcUser(db: Database, sub: string, preferredName: string): { id: string; username: string } {
+  const existing = db.query("SELECT id, username FROM users WHERE oauth_sub = ?").get(sub) as { id: string; username: string } | null;
+  if (existing) return existing;
+  const base = (preferredName || sub).trim() || sub;
+  let name = base; let i = 2;
+  while (db.query("SELECT 1 FROM users WHERE username = ?").get(name)) name = `${base}-${i++}`;
+  const id = crypto.randomUUID();
+  db.run("INSERT INTO users (id, username, password_hash, oauth_sub, created_at) VALUES (?, ?, ?, ?, ?)", [id, name, "", sub, Date.now()]);
+  return { id, username: name };
+}

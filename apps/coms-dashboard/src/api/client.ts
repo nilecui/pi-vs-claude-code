@@ -15,6 +15,7 @@ export const auth = {
   login: (username: string, password: string) => j<{ user: AuthUser }>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }).then((r) => r.user),
   register: (username: string, password: string) => j<{ user: AuthUser }>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }).then((r) => r.user),
   logout: () => j("/api/auth/logout", { method: "POST" }),
+  config: () => j<{ sso: boolean }>("/api/auth/config"),
 };
 
 export interface TeamSummary { id: string; name: string; owner_id: string; role: string; }

@@ -8,8 +8,9 @@ import { startRun } from "./runner";
 import { HubClient } from "./hubClient";
 import { discoverHub } from "./hubConfig";
 import { spawnAgent, killSession, listSessions, spawnMissing } from "./agents";
-import { hashPassword, verifyPassword, createUser, getUserByName, createSession, getSessionUser, deleteSession } from "./auth";
+import { hashPassword, verifyPassword, createUser, getUserByName, createSession, getSessionUser, deleteSession, upsertOidcUser } from "./auth";
 import { createTeam, listTeams, getTeam, addMember, removeMember, deleteTeam } from "./teams";
+import { ssoEnabled, issueState, consumeState, buildAuthUrl, exchangeCode, fetchUserInfo } from "./oidc";
 
 const PORT = Number(process.env.COMS_SERVER_PORT) || 5274;
 
@@ -96,6 +97,29 @@ export function buildServer(deps: ServerDeps): (req: Request) => Promise<Respons
         return jsonCookie({ ok: true }, "coms_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
       }
       if (req.method === "GET" && (p === "/api/health" || p === "/health")) return json({ ok: true, port: PORT });
+
+      // ---- OIDC SSO(免鉴权;未配 env 则关闭)----
+      if (req.method === "GET" && p === "/api/auth/config") return json({ sso: ssoEnabled() });
+      if (req.method === "GET" && p === "/api/auth/oidc/login") {
+        if (!ssoEnabled()) return json({ error: "SSO 未启用" }, 404);
+        const state = issueState();
+        return new Response(null, { status: 302, headers: { ...cors(), Location: await buildAuthUrl(state) } });
+      }
+      if (req.method === "GET" && p === "/api/auth/oidc/callback") {
+        if (!ssoEnabled()) return json({ error: "SSO 未启用" }, 404);
+        const code = url.searchParams.get("code") ?? "";
+        const state = url.searchParams.get("state") ?? "";
+        if (!consumeState(state)) return json({ error: "invalid state" }, 400);
+        try {
+          const { access_token } = await exchangeCode(code);
+          const info = await fetchUserInfo(access_token);
+          const u = upsertOidcUser(deps.db, info.sub, info.preferred_username || info.email || info.sub);
+          const token = createSession(deps.db, u.id);
+          return new Response(null, { status: 302, headers: { ...cors(), "Set-Cookie": sessionCookie(token), Location: "/" } });
+        } catch {
+          return new Response(null, { status: 302, headers: { ...cors(), Location: "/?sso_error=1" } });
+        }
+      }
 
       // ---- 会话中间件:其余路由需有效 session ----
       const user = getSessionUser(deps.db, parseCookie(req, "coms_session"));

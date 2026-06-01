@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { auth, type AuthUser } from "../api/client";
 
 export function Login({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
@@ -7,6 +7,8 @@ export function Login({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
   const [password, setP] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sso, setSso] = useState(false);
+  useEffect(() => { auth.config().then((c) => setSso(c.sso)).catch(() => {}); }, []);
   async function submit() {
     if (!username || !password || busy) return;
     setBusy(true); setErr("");
@@ -31,6 +33,7 @@ export function Login({ onAuthed }: { onAuthed: (u: AuthUser) => void }) {
         <button className="login-switch" onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}>
           {mode === "login" ? "没有账号?去注册" : "已有账号?去登录"}
         </button>
+        {sso && <button className="login-switch" onClick={() => { window.location.href = "/api/auth/oidc/login"; }}>用 SSO 登录</button>}
       </div>
     </div>
   );
