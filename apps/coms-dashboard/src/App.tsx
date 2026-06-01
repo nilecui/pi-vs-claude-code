@@ -7,6 +7,7 @@ import { TerminalStrip } from "./components/TerminalStrip";
 import { ScenarioChat } from "./components/ScenarioChat";
 import { Broadcast } from "./components/Broadcast";
 import { Login } from "./components/Login";
+import { Drawer } from "./components/Drawer";
 import { useStore } from "./store";
 import { CONN_STATUS_LABEL } from "./lib/labels";
 import { auth, type AuthUser } from "./api/client";
@@ -23,12 +24,12 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
   const init = useStore((s) => s.init);
   const shutdown = useStore((s) => s.shutdown);
   const status = useStore((s) => s.status);
+  const [drawer, setDrawer] = useState<"terminal" | "graph" | null>(null);
   useEffect(() => { init(); return () => shutdown(); }, [init, shutdown]);
 
   return (
     <div className="app">
-      <TerminalStrip />
-      <div className="app-body">
+      <div className="app-body two-col">
         <aside className="rail-left">
           <div className="brand">
             <div className="brand-logo">
@@ -46,12 +47,28 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           <Broadcast />
           <AgentList />
         </aside>
-        <main className="rail-center">
-          <FlowGraph />
-          <NodePanel />
-        </main>
         <ScenarioChat />
       </div>
+
+      <div className="drawer-toolbar">
+        <button className={drawer === "terminal" ? "on" : ""} title="终端" onClick={() => setDrawer((d) => (d === "terminal" ? null : "terminal"))} aria-label="打开终端">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>
+        </button>
+        <button className={drawer === "graph" ? "on" : ""} title="流程图" onClick={() => setDrawer((d) => (d === "graph" ? null : "graph"))} aria-label="打开流程图">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="12" r="2.5" /><path d="M8.2 7.2 15.6 11M8.2 16.8 15.6 13" /></svg>
+        </button>
+      </div>
+
+      {drawer === "terminal" && (
+        <Drawer title="终端" onClose={() => setDrawer(null)}>
+          <div className="drawer-scroll"><TerminalStrip /></div>
+        </Drawer>
+      )}
+      {drawer === "graph" && (
+        <Drawer title="关系流程图" onClose={() => setDrawer(null)}>
+          <div className="drawer-graph"><FlowGraph /><NodePanel /></div>
+        </Drawer>
+      )}
     </div>
   );
 }
