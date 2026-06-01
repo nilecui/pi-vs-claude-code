@@ -146,6 +146,10 @@ dashboard:
 spawner:
     bun scripts/agent-spawner.ts
 
+# Single backend service (API + SQLite + hub client + server-side orchestration + spawn).
+server:
+    cd apps/coms-dashboard && bun run server/index.ts
+
 # End-to-end test for the observer firehose. Boots its own isolated hub, asserts
 # observers see peer prompt/response when on and nothing when off, then cleans up.
 test-firehose:

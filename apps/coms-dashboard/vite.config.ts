@@ -86,6 +86,17 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/spawner/, ""),
       },
+      "/api": {
+        target: `http://127.0.0.1:${process.env.COMS_SERVER_PORT ?? 5274}`,
+        changeOrigin: true,
+        configure(proxy) {
+          proxy.on("proxyRes", (proxyRes) => {
+            if ((proxyRes.headers["content-type"] ?? "").includes("text/event-stream")) {
+              delete proxyRes.headers["content-length"];
+            }
+          });
+        },
+      },
     },
   },
 });
