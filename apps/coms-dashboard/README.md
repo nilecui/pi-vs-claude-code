@@ -60,6 +60,13 @@ cd apps/coms-dashboard && bun install && bun run dev   # http://localhost:5273
 
 **首次使用**:打开 `:5273` → 登录页 →「去注册」自助创建账号(开放注册;各账号数据隔离)。SQLite 落在 `server/data/coms.db`(gitignored);重启后端会把残留 running 的 run 标为 aborted。
 
+**可选 · OIDC SSO**:设齐这四个 env 启动 `server` 即在登录页出现「用 SSO 登录」(走授权码流,按 `sub` 映射/建本地账号;未设则隐藏,密码登录照常):
+```bash
+OIDC_ISSUER=https://your-idp/realms/x OIDC_CLIENT_ID=… OIDC_CLIENT_SECRET=… \
+OIDC_REDIRECT_URI=http://<host>:5273/api/auth/oidc/callback  just server
+```
+回调地址需在 IdP 注册;适配任意 OIDC IdP(Keycloak/Authentik/Okta/Google/Azure…)。
+
 ---
 
 ## `ScenarioDef`(配置即编排)
