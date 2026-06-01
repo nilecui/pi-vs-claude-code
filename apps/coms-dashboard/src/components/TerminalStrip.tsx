@@ -14,6 +14,7 @@ export function TerminalStrip() {
   const [collapsed, setCollapsed] = useState(false);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [minimized, setMinimized] = useState<Set<string>>(new Set());
+  const [stripH, setStripH] = useState(124);
 
   // Non-explicit agents, active-first: by their last line's ts desc, name tiebreak.
   const list = useMemo(() => {
@@ -63,21 +64,41 @@ export function TerminalStrip() {
           </span>
         </button>
         {!collapsed && (
-          <div className="term-strip">
-            {visibleList.map((a) => (
-              <div key={a.session_id} ref={(el) => { refs.current[a.session_id] = el; }}>
-                <TerminalWindow
-                  agent={a}
-                  lines={linesByAgent[a.session_id] ?? []}
-                  selected={selected === a.session_id}
-                  minimized={minimized.has(a.session_id)}
-                  onMaximize={() => setZoom(a.session_id)}
-                  onMinimize={() => setMinimized((m) => { const n = new Set(m); n.has(a.session_id) ? n.delete(a.session_id) : n.add(a.session_id); return n; })}
-                  onClose={() => setClosed((c) => new Set(c).add(a.session_id))}
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="term-strip" style={{ height: stripH }}>
+              {visibleList.map((a) => (
+                <div key={a.session_id} ref={(el) => { refs.current[a.session_id] = el; }}>
+                  <TerminalWindow
+                    agent={a}
+                    lines={linesByAgent[a.session_id] ?? []}
+                    selected={selected === a.session_id}
+                    minimized={minimized.has(a.session_id)}
+                    onMaximize={() => setZoom(a.session_id)}
+                    onMinimize={() => setMinimized((m) => { const n = new Set(m); n.has(a.session_id) ? n.delete(a.session_id) : n.add(a.session_id); return n; })}
+                    onClose={() => setClosed((c) => new Set(c).add(a.session_id))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div
+              className="term-strip-resize"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startY = e.clientY;
+                const startH = stripH;
+                const onMove = (ev: MouseEvent) => {
+                  const h = Math.max(110, Math.min(window.innerHeight * 0.6, startH + (ev.clientY - startY)));
+                  setStripH(h);
+                };
+                const onUp = () => {
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              }}
+            />
+          </>
         )}
       </div>
 
