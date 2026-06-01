@@ -209,8 +209,8 @@ code {
 .term-strip-right { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; }
 .term-restore { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
 .term-strip-action { color: var(--primary-strong); font-size: 10px; cursor: pointer; }
-.term-strip { display: flex; gap: 10px; padding: 10px 12px; overflow-x: auto; background: var(--muted-surface); border-bottom: 0; }
-.macterm { flex: 0 0 auto; width: 280px; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
+.term-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; gap: 10px; padding: 10px 12px; max-height: 42vh; overflow-y: auto; background: var(--muted-surface); border-bottom: 0; }
+.macterm { width: 100%; display: flex; flex-direction: column; background: #0d1117; border: 1px solid #1f2630; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-card); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s; }
 .macterm:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
 .macterm.sel { border-color: var(--primary); box-shadow: 0 0 0 3px hsl(217 91% 60% / .25); }
 .macterm-bar { display: flex; align-items: center; gap: 7px; padding: 7px 10px; background: #161b22; border-bottom: 1px solid #1f2630; }
