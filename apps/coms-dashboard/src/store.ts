@@ -2,8 +2,6 @@ import { create } from "zustand";
 import { HubClient } from "./api/hub";
 import type { AgentCard, SseEvent, StreamLine } from "./types";
 import { orchestratePrompt } from "./lib/orchestratePrompt";
-import { SCENARIOS } from "./lib/scenarios";
-
 export const DASHBOARD_ID = "__dashboard__";
 const MAX_LINES = 500;
 
@@ -26,7 +24,6 @@ interface State {
   edgeCounts: Record<string, number>; // cumulative message count per connection (sorted-pair key)
   selected?: string;
   selectNonce: number;
-  demoAgents: Record<string, AgentCard>;
   client: HubClient | null;
 
   init: () => void;
@@ -37,8 +34,6 @@ interface State {
   select: (sessionId?: string) => void;
   clearFlow: (id: string) => void;
   replay: () => void;
-  runScenario: (id: string) => void;
-  clearDemo: () => void;
 }
 
 let lineSeq = 0;
@@ -70,8 +65,6 @@ function refSession(
   if (typeof ref !== "string") return ref.session_id ?? sessionByName(agents, ref.name) ?? ref.name;
   return sessionByName(agents, ref) ?? ref;
 }
-
-let scenarioTimers: ReturnType<typeof setTimeout>[] = [];
 
 export const useStore = create<State>((set, get) => {
   function pushLine(line: StreamLine, agentSession?: string) {
@@ -107,7 +100,7 @@ export const useStore = create<State>((set, get) => {
       case "pool_snapshot": {
         const map: Record<string, AgentCard> = {};
         for (const a of e.data.agents) map[a.session_id] = a;
-        set((s) => ({ agents: { ...map, ...s.demoAgents } }));
+        set({ agents: map });
         break;
       }
 
@@ -196,7 +189,6 @@ export const useStore = create<State>((set, get) => {
   return {
     status: "connecting",
     agents: {},
-    demoAgents: {},
     lines: [],
     linesByAgent: {},
     flows: [],
@@ -292,69 +284,5 @@ export const useStore = create<State>((set, get) => {
       });
     },
 
-    clearDemo() {
-      scenarioTimers.forEach(clearTimeout); scenarioTimers = [];
-      set((s) => {
-        const demoIds = new Set(Object.keys(s.demoAgents));
-        const agents = { ...s.agents };
-        for (const id of demoIds) delete agents[id];
-        const linesByAgent = { ...s.linesByAgent };
-        for (const id of demoIds) delete linesByAgent[id];
-        const edgeCounts: Record<string, number> = {};
-        for (const [k, v] of Object.entries(s.edgeCounts)) {
-          const [a, b] = k.split("::");
-          if (!demoIds.has(a) && !demoIds.has(b)) edgeCounts[k] = v;
-        }
-        return { demoAgents: {}, agents, linesByAgent, edgeCounts,
-                 flows: s.flows.filter((f) => !demoIds.has(f.from) && !demoIds.has(f.to)) };
-      });
-    },
-
-    runScenario(id) {
-      const sc = SCENARIOS.find((x) => x.id === id);
-      if (!sc) return;
-      get().clearDemo();
-      const iso = new Date().toISOString();
-      const demo: Record<string, AgentCard> = {};
-      for (const a of sc.agents) {
-        demo[a.session_id] = {
-          session_id: a.session_id,
-          name: a.name,
-          model: a.model,
-          provider: a.provider,
-          color: a.color,
-          purpose: a.purpose,
-          explicit: false,
-          status: "online",
-          started_at: iso,
-          context_used_pct: 12,
-          queue_depth: 0,
-          cwd: "/demo",
-          project: "default",
-        };
-      }
-      set((s) => ({ demoAgents: { ...s.demoAgents, ...demo }, agents: { ...s.agents, ...demo } }));
-
-      for (const step of sc.steps) {
-        const timer = setTimeout(() => {
-          pulse(
-            step.fromSession,
-            step.toSession,
-            step.kind === "response" ? "response" : step.kind === "error" ? "error" : "prompt",
-          );
-          const line: StreamLine = { id: nextId(), ts: Date.now(), kind: step.kind, from: step.from, to: step.to, text: step.text };
-          set((s) => {
-            const lines = [...s.lines, line].slice(-MAX_LINES);
-            const linesByAgent = { ...s.linesByAgent };
-            for (const sid of [step.fromSession, step.toSession]) {
-              if (sid === DASHBOARD_ID) continue;
-              linesByAgent[sid] = [...(linesByAgent[sid] ?? []), line].slice(-MAX_LINES);
-            }
-            return { lines, linesByAgent };
-          });
-        }, step.delay);
-        scenarioTimers.push(timer);
-      }
-    },
   };
 });

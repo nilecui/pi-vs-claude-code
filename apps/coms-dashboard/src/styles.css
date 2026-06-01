@@ -281,3 +281,10 @@ code {
 .graph-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .graph-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .graph-legend i.ln { width: 16px; height: 3px; border-radius: 2px; }
+
+.hier-runner { display: flex; flex-direction: column; gap: 6px; }
+.hier-runner textarea { resize: none; height: 56px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; color: var(--text); font-family: inherit; }
+.hier-runner textarea:focus { outline: none; border-color: var(--primary); }
+.hier-actions { display: flex; gap: 8px; }
+.hier-actions .send-btn { flex: 1; }
+.hier-stop { border: 1px solid var(--hairline); background: var(--muted-surface); color: var(--muted); border-radius: 12px; padding: 0 12px; font-size: 12px; cursor: pointer; }

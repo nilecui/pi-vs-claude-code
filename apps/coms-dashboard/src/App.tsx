@@ -4,7 +4,7 @@ import { AgentList } from "./components/AgentList";
 import { FlowGraph } from "./components/FlowGraph";
 import { NodePanel } from "./components/NodePanel";
 import { TerminalStrip } from "./components/TerminalStrip";
-import { ScenarioMenu } from "./components/ScenarioMenu";
+import { HierarchyRunner } from "./components/HierarchyRunner";
 import { Broadcast } from "./components/Broadcast";
 import { useStore } from "./store";
 import { CONN_STATUS_LABEL } from "./lib/labels";
@@ -35,7 +35,7 @@ export default function App() {
             </div>
           </div>
           <AddAgentForm />
-          <ScenarioMenu />
+          <HierarchyRunner />
           <Broadcast />
           <AgentList />
         </aside>
