@@ -162,6 +162,8 @@ if (import.meta.main) {
   };
   const agents = { spawnMissing: (roles: RoleDef[]) => spawnMissing(roles, onlineNames) };
   const handler = buildServer({ db, hub, agents, awaitRuns: false });
-  Bun.serve({ port: PORT, hostname: "127.0.0.1", fetch: handler });
+  // idleTimeout 拉满(255s,Bun 上限):run SSE 在 agent 思考期间会长时间无数据,
+  // 否则默认 10s 会被关闭;前端 EventSource 断线会重连并由 sseForRun 重放快照兜底。
+  Bun.serve({ port: PORT, hostname: "127.0.0.1", idleTimeout: 255, fetch: handler });
   console.log("[coms-server] listening on http://127.0.0.1:" + PORT + " (hub " + baseUrl + ")");
 }

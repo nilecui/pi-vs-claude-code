@@ -40,39 +40,62 @@ export class HubClient {
     return { "content-type": "application/json", ...(this.opts.token ? { Authorization: `Bearer ${this.opts.token}` } : {}) };
   }
 
-  // 真实 hub:注册 + 消费 /v1/events SSE(用 fetch 流手动解析,Bun 无内置 EventSource)。
+  // 真实 hub:注册 + 心跳(否则会话被回收,response 事件停止下发)+ 消费 /v1/events SSE
+  // (用 fetch 流手动解析,Bun 无内置 EventSource);断流自动重连。
   private connectReal(onEvent: (e: HubEvent) => void): () => void {
     const ctrl = new AbortController();
-    (async () => {
-      await fetch(`${this.opts.baseUrl}/v1/agents/register`, {
-        method: "POST", headers: this.hdrs(),
-        body: JSON.stringify({ project: PROJECT, session_id: this.sessionId, name: "coms-server",
-          purpose: "Backend orchestration service", model: "n/a", color: "#7dd3fc", cwd: "server", explicit: true }),
-      }).catch(() => {});
-      const res = await fetch(`${this.opts.baseUrl}/v1/events?project=${PROJECT}&session_id=${this.sessionId}`,
-        { headers: this.hdrs(), signal: ctrl.signal });
-      if (!res.body) return;
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const frames = buf.split("\n\n");
-        buf = frames.pop() ?? "";
-        for (const frame of frames) {
-          let ev = "message"; let dataStr = "";
-          for (const line of frame.split("\n")) {
-            if (line.startsWith("event:")) ev = line.slice(6).trim();
-            else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+    let stopped = false;
+    let hbTimer: ReturnType<typeof setInterval> | null = null;
+
+    const startHeartbeat = () => {
+      if (hbTimer) clearInterval(hbTimer);
+      hbTimer = setInterval(() => {
+        fetch(`${this.opts.baseUrl}/v1/agents/${this.sessionId}/heartbeat`, {
+          method: "POST", headers: this.hdrs(),
+          body: JSON.stringify({ project: PROJECT, context_used_pct: 0, queue_depth: 0 }),
+        }).catch(() => { /* 漏一拍可恢复 */ });
+      }, 8000);
+    };
+
+    const loop = async () => {
+      while (!stopped) {
+        try {
+          await fetch(`${this.opts.baseUrl}/v1/agents/register`, {
+            method: "POST", headers: this.hdrs(),
+            body: JSON.stringify({ project: PROJECT, session_id: this.sessionId, name: "coms-server",
+              purpose: "Backend orchestration service", model: "n/a", color: "#7dd3fc", cwd: "server", explicit: true }),
+          }).catch(() => {});
+          startHeartbeat();
+          const res = await fetch(`${this.opts.baseUrl}/v1/events?project=${PROJECT}&session_id=${this.sessionId}`,
+            { headers: this.hdrs(), signal: ctrl.signal });
+          if (res.body) {
+            const reader = res.body.getReader();
+            const dec = new TextDecoder();
+            let buf = "";
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              const frames = buf.split("\n\n");
+              buf = frames.pop() ?? "";
+              for (const frame of frames) {
+                let ev = "message"; let dataStr = "";
+                for (const line of frame.split("\n")) {
+                  if (line.startsWith("event:")) ev = line.slice(6).trim();
+                  else if (line.startsWith("data:")) dataStr += line.slice(5).trim();
+                }
+                if (!dataStr) continue;
+                try { onEvent({ event: ev, data: JSON.parse(dataStr) }); } catch { /* ignore */ }
+              }
+            }
           }
-          if (!dataStr) continue;
-          try { onEvent({ event: ev, data: JSON.parse(dataStr) }); } catch { /* ignore */ }
-        }
+        } catch { /* aborted or transient — fall through to reconnect */ }
+        if (stopped) break;
+        await Bun.sleep(2000); // 重连退避
       }
-    })().catch(() => {});
-    return () => ctrl.abort();
+    };
+    void loop();
+    return () => { stopped = true; if (hbTimer) clearInterval(hbTimer); ctrl.abort(); };
   }
 
   private async postReal(role: string, prompt: string): Promise<string> {
