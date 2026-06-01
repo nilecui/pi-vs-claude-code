@@ -13,6 +13,7 @@ export const api = {
   listScenarios: () => j<{ scenarios: ScenarioSummary[] }>("/api/scenarios").then((r) => r.scenarios),
   getScenario: (id: string) => j<{ scenario: ScenarioDef }>(`/api/scenarios/${encodeURIComponent(id)}`).then((r) => r.scenario),
   createScenario: (s: ScenarioDef) => j<{ ok: boolean; id: string }>("/api/scenarios", { method: "POST", body: JSON.stringify(s) }),
+  duplicateScenario: (id: string) => j<{ ok: boolean; id: string }>(`/api/scenarios/${encodeURIComponent(id)}/duplicate`, { method: "POST" }),
   updateScenario: (id: string, s: ScenarioDef) => j(`/api/scenarios/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(s) }),
   deleteScenario: (id: string) => j(`/api/scenarios/${encodeURIComponent(id)}`, { method: "DELETE" }),
   createRun: (scenarioId: string, input: string) => j<{ runId: string }>("/api/runs", { method: "POST", body: JSON.stringify({ scenarioId, input }) }).then((r) => r.runId),

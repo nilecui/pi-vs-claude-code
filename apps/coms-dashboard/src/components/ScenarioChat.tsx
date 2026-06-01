@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, type ScenarioSummary } from "../api/client";
 import type { ScenarioDef } from "../lib/orchestration/types";
+import { ScenarioEditor } from "./ScenarioEditor";
 
 function StreamingMarkdown({ text, onTick }: { text: string; onTick?: () => void }) {
   const [shown, setShown] = useState("");
@@ -28,6 +29,24 @@ export function ScenarioChat() {
   const [busy, setBusy] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const [editorInitial, setEditorInitial] = useState<ScenarioDef | null | undefined>(undefined); // undefined=关闭
+  const current = scenarios.find((x) => x.id === sid);
+
+  async function openEdit() {
+    if (!current) return;
+    if (current.builtin) {
+      const { id } = await api.duplicateScenario(sid);
+      setEditorInitial(await api.getScenario(id));
+    } else {
+      setEditorInitial(await api.getScenario(sid));
+    }
+  }
+  async function onEditorSaved(id: string) {
+    const list = await api.listScenarios();
+    setScenarios(list);
+    setSid(id || list[0]?.id || "");
+    setEditorInitial(undefined);
+  }
 
   useEffect(() => { api.listScenarios().then((s) => { setScenarios(s); if (s[0]) setSid(s[0].id); }).catch(() => setStatusMsg("无法连接后端 — 先 just server")); }, []);
   useEffect(() => { if (!sid) return; api.getScenario(sid).then((d) => { setDetail(d); setDraft(d.input.default); setSteps([]); setResult(null); setStatusMsg(""); }).catch(() => {}); }, [sid]);
@@ -75,6 +94,8 @@ export function ScenarioChat() {
         <select value={sid} onChange={(e) => setSid(e.target.value)}>
           {scenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
+        <button className="result-open" onClick={() => setEditorInitial(null)}>+ 新建</button>
+        {current && <button className="result-open" onClick={openEdit}>{current.builtin ? "复制并编辑" : "编辑"}</button>}
         {result && <button className="result-open" onClick={() => setShowResult(true)}>📄 查看完整产出</button>}
         <button className="hier-stop" onClick={stop}>停止</button>
       </div>
@@ -110,6 +131,9 @@ export function ScenarioChat() {
             <div className="result-body"><div className="chat-md"><ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown></div></div>
           </div>
         </div>
+      )}
+      {editorInitial !== undefined && (
+        <ScenarioEditor initial={editorInitial} onClose={() => setEditorInitial(undefined)} onSaved={onEditorSaved} />
       )}
     </aside>
   );
