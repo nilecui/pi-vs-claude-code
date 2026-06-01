@@ -92,7 +92,7 @@ code {
 .section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: hsl(220 9% 46% / .7); }
 .muted { color: var(--muted); font-size: 12px; }
 
-.agent-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.agent-list { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
 .agent-row {
   display: flex; gap: 9px; align-items: flex-start; text-align: left;
   background: var(--card); border: 1px solid var(--hairline); border-radius: 12px;
@@ -164,7 +164,7 @@ code {
 ::-webkit-scrollbar-thumb:hover { background: hsl(220 9% 46% / .5); }
 
 /* ── Left rail ───────────────────────────────────────── */
-.rail-left { background: var(--panel); backdrop-filter: blur(16px); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px; gap: 12px; overflow: hidden; }
+.rail-left { background: var(--panel); backdrop-filter: blur(16px); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px; gap: 12px; overflow-y: auto; overflow-x: hidden; }
 .rail-center { position: relative; min-width: 0; background: var(--bg); }
 
 /* ── Add agent ───────────────────────────────────────── */
