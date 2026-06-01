@@ -438,14 +438,19 @@ code {
 
 /* two-column layout + drawers (terminal / flow graph) */
 .app-body.two-col { grid-template-columns: 280px 1fr; }
-.app-body.one-col { grid-template-columns: 1fr; }
+.app-body.mini-col { grid-template-columns: 52px 1fr; }
+/* 折叠后的窄图标栏:不浮动、不遮挡正文 */
+.rail-mini { background: var(--panel); backdrop-filter: blur(16px); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; overflow: hidden; }
+.rail-mini-btn { width: 36px; height: 36px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); background: var(--card); color: var(--muted); border-radius: 9px; cursor: pointer; }
+.rail-mini-btn:hover { color: var(--primary-strong); border-color: var(--primary); }
+.rail-mini-btn.brand { color: var(--primary-strong); border-color: var(--primary); }
+.rail-mini-btn.logout { margin-top: auto; }
+.rail-mini-sep { width: 24px; height: 1px; background: var(--hairline); margin: 2px 0; flex: 0 0 auto; }
 /* 右侧浮动工具按钮:竖排贴右边中部 */
 .drawer-toolbar { position: fixed; top: 50%; right: 14px; transform: translateY(-50%); z-index: 55; display: flex; flex-direction: column; gap: 10px; }
 /* 左侧栏折叠/展开 */
 .rail-collapse { width: 22px; height: 22px; flex: 0 0 auto; border: 1px solid var(--hairline); background: var(--card); color: var(--muted); border-radius: 7px; cursor: pointer; font-size: 13px; line-height: 1; }
 .rail-collapse:hover { color: var(--primary-strong); border-color: var(--primary); }
-.rail-expand { position: fixed; top: 14px; left: 14px; z-index: 55; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); background: var(--card); color: var(--muted); border-radius: 9px; cursor: pointer; box-shadow: var(--shadow); }
-.rail-expand:hover { color: var(--primary-strong); border-color: var(--primary); }
 .drawer-toolbar button { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--hairline); background: var(--card); border-radius: 10px; color: var(--muted); cursor: pointer; box-shadow: var(--shadow); }
 .drawer-toolbar button:hover { color: var(--primary-strong); border-color: var(--primary); }
 .drawer-toolbar button.on { color: #fff; background: var(--primary); border-color: var(--primary); }

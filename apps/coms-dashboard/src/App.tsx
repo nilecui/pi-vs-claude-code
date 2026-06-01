@@ -30,8 +30,8 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
 
   return (
     <div className="app">
-      <div className={`app-body ${railOpen ? "two-col" : "one-col"}`}>
-        {railOpen && <aside className="rail-left">
+      <div className={`app-body ${railOpen ? "two-col" : "mini-col"}`}>
+        {railOpen ? (<aside className="rail-left">
           <div className="brand">
             <div className="brand-logo">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -48,11 +48,28 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
           <AddAgentForm />
           <Broadcast />
           <AgentList />
-        </aside>}
+        </aside>) : (
+          <aside className="rail-mini">
+            <button className="rail-mini-btn brand" title="展开侧栏" onClick={() => setRailOpen(true)} aria-label="展开侧栏">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" /></svg>
+            </button>
+            <div className="rail-mini-sep" />
+            <button className="rail-mini-btn" title="新增智能体" onClick={() => setRailOpen(true)} aria-label="新增智能体">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
+            </button>
+            <button className="rail-mini-btn" title="群发消息" onClick={() => setRailOpen(true)} aria-label="群发消息">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l16-6v14L3 13z" /><path d="M3 11v2M8 12.5V18l3 1" /></svg>
+            </button>
+            <button className="rail-mini-btn" title="智能体列表" onClick={() => setRailOpen(true)} aria-label="智能体列表">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+            </button>
+            <button className="rail-mini-btn logout" title={`登出 ${user.username}`} onClick={onLogout} aria-label="登出">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+            </button>
+          </aside>
+        )}
         <ScenarioChat />
       </div>
-
-      {!railOpen && <button className="rail-expand" title="展开侧栏" onClick={() => setRailOpen(true)} aria-label="展开侧栏">☰</button>}
 
       <div className="drawer-toolbar">
         <button className={drawer === "terminal" ? "on" : ""} title="终端" onClick={() => setDrawer((d) => (d === "terminal" ? null : "terminal"))} aria-label="打开终端">
