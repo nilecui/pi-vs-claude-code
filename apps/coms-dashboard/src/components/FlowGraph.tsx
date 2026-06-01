@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { EdgeEvent, Graph, NodeEvent, type GraphData, type LayoutOptions } from "@antv/g6";
+import { Renderer as CanvasRenderer } from "@antv/g-canvas";
 import { DASHBOARD_ID, edgeKey, useStore } from "../store";
 import { LAYOUT_LABEL } from "../lib/labels";
 import { ConversationDialog } from "./ConversationDialog";
@@ -134,6 +135,15 @@ export function FlowGraph() {
     if (!containerRef.current) return;
     const graph = new Graph({
       container: containerRef.current,
+      // Force full-canvas repaint on every draw() by disabling dirty-rectangle
+      // rendering. Inside the right-side drawer (a fixed, backdrop-filtered,
+      // transform-animated stacking context) G6's dirty-rectangle math computes
+      // the wrong invalidation region, so the rAF loop's updateEdgeData()+draw()
+      // micro-updates (flowing dash + halo breathing) reconcile into the data but
+      // never actually repaint — the graph looked frozen. Full repaint sidesteps
+      // that; the graph is small so the cost at ~20fps is negligible. (Only render()
+      // worked before because it always does a full repaint.)
+      renderer: () => new CanvasRenderer({ enableDirtyRectangleRendering: false }),
       autoFit: "center",
       // Margin kept around content when auto-fitting / fitView (5.1.1 FitViewOptions
       // has no padding key — padding lives at the viewport/graph level).
@@ -262,24 +272,32 @@ export function FlowGraph() {
       if (!g || g.destroyed || rendering.current) return;
       try {
         offset = (offset + 1.2) % 1000;
-        // Re-read CURRENT edges/nodes every frame, so removed pulse edges simply
-        // aren't in the list (no stale id) and added ones get picked up.
-        const eUpdates = g.getEdgeData().map((e: any) => ({
-          id: e.id,
-          style: { lineDashOffset: -offset * (e.id?.startsWith("flow-") ? 2 : 1) },
-        }));
-        if (eUpdates.length) g.updateEdgeData(eUpdates);
-        // Halo breathing on online nodes (~ sine loop).
-        const nUpdates = g
-          .getNodeData()
-          .filter((n: any) => n.data?.status === "online")
-          .map((n: any) => ({
-            id: n.id,
-            style: { haloStrokeOpacity: 0.18 + 0.1 * (0.5 + 0.5 * Math.sin(offset * 0.15)) },
-          }));
-        if (nUpdates.length) g.updateNodeData(nUpdates);
-        // The rAF loop is the SOLE repeated renderer.
-        g.draw().catch(() => {});
+        const halo = 0.18 + 0.1 * (0.5 + 0.5 * Math.sin(offset * 0.15));
+        // draw() reconciles STRUCTURAL changes (pulse edges added/removed by the
+        // flows effect) into the scene graph. It does NOT drive the per-frame
+        // motion: inside the drawer's stacking context updateEdgeData()+draw()
+        // reconciles data but never repaints, so the graph looked frozen. Instead,
+        // once the shapes exist, write the animated styles straight onto the
+        // rendered shapes (setAttribute updates their parsedStyle reactively) and
+        // force a full canvas repaint (dirty-rectangle rendering is disabled in the
+        // Graph config, otherwise the computed dirty region here is empty).
+        g.draw()
+          .then(() => {
+            try {
+              const map: any = (g as any).context?.element?.elementMap;
+              if (!map) return;
+              for (const e of g.getEdgeData()) {
+                const key = map[e.id as string]?.shapeMap?.key;
+                key?.setAttribute?.("lineDashOffset", -offset * ((e.id as string)?.startsWith("flow-") ? 2 : 1));
+              }
+              for (const n of g.getNodeData()) {
+                if ((n.data as any)?.status !== "online") continue;
+                map[n.id as string]?.shapeMap?.halo?.setAttribute?.("strokeOpacity", halo);
+              }
+              (g as any).context?.canvas?.getRoot?.()?.ownerDocument?.defaultView?.render();
+            } catch {}
+          })
+          .catch(() => {});
       } catch {}
     };
     raf = requestAnimationFrame(tick);
