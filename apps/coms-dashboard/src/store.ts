@@ -160,13 +160,15 @@ export const useStore = create<State>((set, get) => {
         const fromSession = e.data.sender.session_id;
         const toSession = e.data.target.session_id;
         const isErr = e.data.phase === "response" && (e.data.error != null || e.data.status === "error");
-        // The server-side orchestrator ("coms-server") drives every scenario
-        // message but is not a node in the graph, so its pulses to/from agents
-        // would be filtered out and nothing would animate during a run. Map any
-        // non-agent participant (the orchestrator) onto the dashboard node — the
-        // 控制面板 node stands in for "the system orchestrating", matching the old
-        // client-driven behavior where the dashboard itself sent the prompts.
-        const graphNode = (s: string) => (s === DASHBOARD_ID || s in agents ? s : DASHBOARD_ID);
+        // Fold every non-agent participant onto the single 控制面板 node so the
+        // graph stays clean: (a) the server-side orchestrator "coms-server" (not a
+        // node) — otherwise its scenario pulses to agents would be dropped and
+        // nothing would animate; (b) the panel's own hub registrations
+        // ("dashboard", "dashboard2", …, deduped per browser/reload) — otherwise a
+        // stray dashboardN node appears with a duplicate star of edges. A pulse
+        // renders only between real agent nodes or the 控制面板 stand-in.
+        const realAgent = (s: string) => { const a = agents[s]; return !!a && !a.explicit && !/^dashboard\d*$/i.test(a.name); };
+        const graphNode = (s: string) => (realAgent(s) ? s : DASHBOARD_ID);
         pulse(graphNode(fromSession), graphNode(toSession), isErr ? "error" : e.data.phase);
         const text =
           e.data.phase === "prompt"

@@ -67,7 +67,11 @@ const nameOf = (sessionId: string): string =>
 // full setData() never tries to diff/remove them — which would make G6 5.1.1
 // throw "Edge not found".
 function buildBaseData(agents: Agents, counts: EdgeCounts): GraphData {
-  const list = Object.values(agents).filter((a) => !a.explicit);
+  // Hide observers from the graph: explicit registrations AND the panel's own
+  // hub identities ("dashboard", "dashboard2", … — one per browser/reload). The
+  // synthetic 控制面板 node already represents the panel; a real "dashboard" node
+  // would be a confusing duplicate.
+  const list = Object.values(agents).filter((a) => !a.explicit && !/^dashboard\d*$/i.test(a.name));
   const nodeIds = new Set<string>([DASHBOARD_ID, ...list.map((a) => a.session_id)]);
   const nodes: NonNullable<GraphData["nodes"]> = [
     {

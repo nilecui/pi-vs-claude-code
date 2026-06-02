@@ -31,6 +31,11 @@ export class HubClient {
   private es: EventSource | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
+  // Deregister on tab close / hard reload — React effect cleanup does not run
+  // reliably on those, so without this the hub keeps the dead "dashboard"
+  // registration alive until its 60s reap, and each reload piles up another
+  // (dashboard2, dashboard3, …).
+  private onUnload = () => this.stop();
 
   constructor(private handlers: HubHandlers) {}
 
@@ -56,6 +61,8 @@ export class HubClient {
         }),
       });
       this.sessionId = reg.agent.session_id;
+      window.removeEventListener("pagehide", this.onUnload);
+      window.addEventListener("pagehide", this.onUnload);
       this.startHeartbeat(reg.heartbeat_interval_ms || 10_000);
       this.openStream();
     } catch (e) {
@@ -149,11 +156,13 @@ export class HubClient {
   stop(): void {
     this.stopped = true;
     this.clearHeartbeat();
+    window.removeEventListener("pagehide", this.onUnload);
     if (this.es) this.es.close();
     this.es = null;
     if (this.sessionId) {
-      // Best-effort graceful deregister.
-      fetch(`/v1/agents/${this.sessionId}?project=${PROJECT}`, { method: "DELETE" }).catch(
+      // Best-effort graceful deregister. `keepalive` lets the request complete
+      // even when fired from a pagehide/unload as the document is tearing down.
+      fetch(`/v1/agents/${this.sessionId}?project=${PROJECT}`, { method: "DELETE", keepalive: true }).catch(
         () => {},
       );
     }
