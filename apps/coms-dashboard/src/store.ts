@@ -160,7 +160,14 @@ export const useStore = create<State>((set, get) => {
         const fromSession = e.data.sender.session_id;
         const toSession = e.data.target.session_id;
         const isErr = e.data.phase === "response" && (e.data.error != null || e.data.status === "error");
-        pulse(fromSession, toSession, isErr ? "error" : e.data.phase);
+        // The server-side orchestrator ("coms-server") drives every scenario
+        // message but is not a node in the graph, so its pulses to/from agents
+        // would be filtered out and nothing would animate during a run. Map any
+        // non-agent participant (the orchestrator) onto the dashboard node — the
+        // 控制面板 node stands in for "the system orchestrating", matching the old
+        // client-driven behavior where the dashboard itself sent the prompts.
+        const graphNode = (s: string) => (s === DASHBOARD_ID || s in agents ? s : DASHBOARD_ID);
+        pulse(graphNode(fromSession), graphNode(toSession), isErr ? "error" : e.data.phase);
         const text =
           e.data.phase === "prompt"
             ? e.data.prompt ?? ""
